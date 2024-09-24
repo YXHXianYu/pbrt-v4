@@ -1,0 +1,208 @@
+2024-09-23 01:02:57,903 - 开始执行命令 1: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-pt.pbrt
+2024-09-23 01:07:23,160 - 命令 1 执行成功, 耗时: 265.26 秒
+2024-09-23 01:07:23,160 - stdout: 
+2024-09-23 01:07:23,160 - stderr: 
+2024-09-23 01:07:23,160 - 
+
+=====================================
+
+2024-09-23 01:07:23,160 - 开始执行命令 2: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-sppm.pbrt
+2024-09-23 01:12:02,022 - 命令 2 执行成功, 耗时: 278.86 秒
+2024-09-23 01:12:02,023 - stdout: 
+2024-09-23 01:12:02,023 - stderr: 
+2024-09-23 01:12:02,023 - 
+
+=====================================
+
+2024-09-23 01:12:02,024 - 开始执行命令 3: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\bistro\bistro_vespa-pt.pbrt
+2024-09-23 01:19:38,484 - 命令 3 执行成功, 耗时: 456.46 秒
+2024-09-23 01:19:38,485 - stdout: 
+2024-09-23 01:19:38,485 - stderr: 
+2024-09-23 01:19:38,485 - 
+
+=====================================
+
+2024-09-23 01:19:38,485 - 开始执行命令 4: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\bistro\bistro_vespa-sppm.pbrt
+2024-09-23 01:26:39,650 - 命令 4 执行成功, 耗时: 421.16 秒
+2024-09-23 01:26:39,651 - stdout: 
+2024-09-23 01:26:39,651 - stderr: 
+2024-09-23 01:26:39,651 - 
+
+=====================================
+
+2024-09-23 01:26:39,651 - 开始执行命令 5: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\bmw-m6\bmw-m6-pt.pbrt
+2024-09-23 01:28:41,292 - 命令 5 执行成功, 耗时: 121.64 秒
+2024-09-23 01:28:41,292 - stdout: 
+2024-09-23 01:28:41,292 - stderr: 
+2024-09-23 01:28:41,292 - 
+
+=====================================
+
+2024-09-23 01:28:41,292 - 开始执行命令 6: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\bmw-m6\bmw-m6-sppm.pbrt
+2024-09-23 01:31:00,325 - 命令 6 执行成功, 耗时: 139.03 秒
+2024-09-23 01:31:00,325 - stdout: 
+2024-09-23 01:31:00,325 - stderr: 
+2024-09-23 01:31:00,325 - 
+
+=====================================
+
+2024-09-23 01:31:00,325 - 开始执行命令 7: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\contemporary-bathroom\contemporary-bathroom-sppm.pbrt
+2024-09-23 01:37:30,837 - 命令 7 执行成功, 耗时: 390.51 秒
+2024-09-23 01:37:30,838 - stdout: 
+2024-09-23 01:37:30,838 - stderr: 
+2024-09-23 01:37:30,838 - 
+
+=====================================
+
+2024-09-23 01:37:30,838 - 开始执行命令 8: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\contemporary-bathroom\contemporary-bathroom-pt.pbrt
+2024-09-23 01:44:35,018 - 命令 8 执行成功, 耗时: 424.18 秒
+2024-09-23 01:44:35,018 - stdout: 
+2024-09-23 01:44:35,018 - stderr: 
+2024-09-23 01:44:35,018 - 
+
+=====================================
+
+2024-09-23 01:44:35,019 - 开始执行命令 9: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\crown\crown-pt.pbrt
+2024-09-23 01:48:57,816 - 命令 9 执行成功, 耗时: 262.80 秒
+2024-09-23 01:48:57,816 - stdout: 
+2024-09-23 01:48:57,816 - stderr: 
+2024-09-23 01:48:57,816 - 
+
+=====================================
+
+2024-09-23 01:48:57,816 - 开始执行命令 10: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\crown\crown-sppm.pbrt
+2024-09-23 01:54:25,559 - 命令 10 执行成功, 耗时: 327.74 秒
+2024-09-23 01:54:25,559 - stdout: 
+2024-09-23 01:54:25,559 - stderr: 
+2024-09-23 01:54:25,559 - 
+
+=====================================
+
+2024-09-23 01:54:25,559 - 开始执行命令 11: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\killeroos\killeroo-simple-pt.pbrt
+2024-09-23 01:56:13,243 - 命令 11 执行成功, 耗时: 107.68 秒
+2024-09-23 01:56:13,243 - stdout: 
+2024-09-23 01:56:13,243 - stderr: 
+2024-09-23 01:56:13,243 - 
+
+=====================================
+
+2024-09-23 01:56:13,243 - 开始执行命令 12: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\killeroos\killeroo-simple-sppm.pbrt
+2024-09-23 01:59:06,400 - 命令 12 执行成功, 耗时: 173.16 秒
+2024-09-23 01:59:06,400 - stdout: 
+2024-09-23 01:59:06,400 - stderr: 
+2024-09-23 01:59:06,400 - 
+
+=====================================
+
+2024-09-23 01:59:06,400 - 开始执行命令 13: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\kroken\camera-1-pt.pbrt
+2024-09-23 02:46:15,844 - 命令 13 执行成功, 耗时: 2829.44 秒
+2024-09-23 02:46:15,847 - stdout: 
+2024-09-23 02:46:15,847 - stderr: 
+2024-09-23 02:46:15,847 - 
+
+=====================================
+
+2024-09-23 02:46:15,847 - 开始执行命令 14: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\kroken\camera-1-sppm.pbrt
+2024-09-23 03:26:28,070 - 命令 14 执行成功, 耗时: 2412.22 秒
+2024-09-23 03:26:28,073 - stdout: 
+2024-09-23 03:26:28,073 - stderr: 
+2024-09-23 03:26:28,073 - 
+
+=====================================
+
+2024-09-23 03:26:28,073 - 开始执行命令 15: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\pbrt-book\book-pt.pbrt
+2024-09-23 03:28:06,454 - 命令 15 执行成功, 耗时: 98.38 秒
+2024-09-23 03:28:06,454 - stdout: 
+2024-09-23 03:28:06,454 - stderr: 
+2024-09-23 03:28:06,454 - 
+
+=====================================
+
+2024-09-23 03:28:06,454 - 开始执行命令 16: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\pbrt-book\book-sppm.pbrt
+2024-09-23 03:29:58,214 - 命令 16 执行成功, 耗时: 111.76 秒
+2024-09-23 03:29:58,214 - stdout: 
+2024-09-23 03:29:58,214 - stderr: 
+2024-09-23 03:29:58,214 - 
+
+=====================================
+
+2024-09-23 03:29:58,214 - 开始执行命令 17: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\sanmiguel\sanmiguel-courtyard-pt.pbrt
+2024-09-23 03:32:51,950 - 命令 17 执行成功, 耗时: 173.74 秒
+2024-09-23 03:32:51,950 - stdout: 
+2024-09-23 03:32:51,950 - stderr: 
+2024-09-23 03:32:51,950 - 
+
+=====================================
+
+2024-09-23 03:32:51,950 - 开始执行命令 18: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\sanmiguel\sanmiguel-courtyard-sppm.pbrt
+2024-09-23 03:35:30,528 - 命令 18 执行成功, 耗时: 158.58 秒
+2024-09-23 03:35:30,528 - stdout: 
+2024-09-23 03:35:30,528 - stderr: 
+2024-09-23 03:35:30,528 - 
+
+=====================================
+
+2024-09-23 03:35:30,528 - 开始执行命令 19: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\sportscar\sportscar-area-pt.pbrt
+2024-09-23 03:38:01,390 - 命令 19 执行成功, 耗时: 150.86 秒
+2024-09-23 03:38:01,390 - stdout: 
+2024-09-23 03:38:01,390 - stderr: 
+2024-09-23 03:38:01,390 - 
+
+=====================================
+
+2024-09-23 03:38:01,390 - 开始执行命令 20: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\sportscar\sportscar-area-sppm.pbrt
+2024-09-23 03:41:40,769 - 命令 20 执行成功, 耗时: 219.38 秒
+2024-09-23 03:41:40,769 - stdout: 
+2024-09-23 03:41:40,769 - stderr: 
+2024-09-23 03:41:40,769 - 
+
+=====================================
+
+2024-09-23 03:41:40,769 - 开始执行命令 21: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\sportscar\sportscar-sky-pt.pbrt
+2024-09-23 03:43:51,312 - 命令 21 执行成功, 耗时: 130.54 秒
+2024-09-23 03:43:51,312 - stdout: 
+2024-09-23 03:43:51,312 - stderr: 
+2024-09-23 03:43:51,312 - 
+
+=====================================
+
+2024-09-23 03:43:51,312 - 开始执行命令 22: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\sportscar\sportscar-sky-sppm.pbrt
+2024-09-23 03:46:24,405 - 命令 22 执行成功, 耗时: 153.09 秒
+2024-09-23 03:46:24,405 - stdout: 
+2024-09-23 03:46:24,405 - stderr: 
+2024-09-23 03:46:24,405 - 
+
+=====================================
+
+2024-09-23 03:46:24,405 - 开始执行命令 23: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\watercolor\camera-1-pt.pbrt
+2024-09-23 04:05:02,966 - 命令 23 执行成功, 耗时: 1118.56 秒
+2024-09-23 04:05:02,966 - stdout: 
+2024-09-23 04:05:02,966 - stderr: 
+2024-09-23 04:05:02,966 - 
+
+=====================================
+
+2024-09-23 04:05:02,966 - 开始执行命令 24: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\watercolor\camera-1-sppm.pbrt
+2024-09-23 04:23:10,039 - 命令 24 执行成功, 耗时: 1087.07 秒
+2024-09-23 04:23:10,039 - stdout: 
+2024-09-23 04:23:10,039 - stderr: 
+2024-09-23 04:23:10,039 - 
+
+=====================================
+
+2024-09-23 04:23:10,039 - 开始执行命令 25: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\zero-day\frame120-pt.pbrt
+2024-09-23 04:28:29,023 - 命令 25 执行成功, 耗时: 318.98 秒
+2024-09-23 04:28:29,023 - stdout: 
+2024-09-23 04:28:29,023 - stderr: 
+2024-09-23 04:28:29,023 - 
+
+=====================================
+
+2024-09-23 04:28:29,023 - 开始执行命令 26: .\build\Debug\pbrt.exe --quiet --spp 64 E:\Data\BJTU\NJU1\4.Research\pbrt-v4-scenes-master\zero-day\frame120-sppm.pbrt
+2024-09-23 04:35:53,411 - 命令 26 执行成功, 耗时: 444.39 秒
+2024-09-23 04:35:53,412 - stdout: 
+2024-09-23 04:35:53,412 - stderr: 
+2024-09-23 04:35:53,412 - 
+
+=====================================
+

@@ -1,0 +1,1 @@
+.\build\Debug\pbrt.exe --spp 4 ..\pbrt-v4-scenes-master\contemporary-bathroom\contemporary-bathroom-sppm.pbrt --outfile test.exr

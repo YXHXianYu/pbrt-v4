@@ -272,16 +272,15 @@ void RayIntegrator::EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler
             L = SampledSpectrum(0.f);
         }
 
+        PBRT_DBG("%s\n",
+                 StringPrintf("Camera sample: %s -> ray %s -> L = %s, visibleSurface %s",
+                              cameraSample, cameraRay->ray, L,
+                              (visibleSurface ? visibleSurface.ToString() : "(none)"))
+                     .c_str());
+    } else {
         PBRT_DBG(
             "%s\n",
-            StringPrintf("Camera sample: %s -> ray %s -> L = %s, visibleSurface %s",
-                         cameraSample, cameraRay->ray, L,
-                         (visibleSurface ? visibleSurface.ToString() : "(none)"))
-                .c_str());
-    } else {
-	    PBRT_DBG("%s\n",
-	             StringPrintf("Camera sample: %s -> no ray generated", cameraSample)
-			             .c_str());
+            StringPrintf("Camera sample: %s -> no ray generated", cameraSample).c_str());
     }
     // Add camera ray's contribution to image
     camera.GetFilm().AddSample(pPixel, L, lambda, &visibleSurface,
@@ -949,6 +948,8 @@ std::unique_ptr<SimpleVolPathIntegrator> SimpleVolPathIntegrator::Create(
 STAT_COUNTER("Integrator/Volume interactions", volumeInteractions);
 STAT_COUNTER("Integrator/Surface interactions", surfaceInteractions);
 
+// MARK: VolPath Integrator
+
 // VolPathIntegrator Method Definitions
 SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
                                       Sampler sampler, ScratchBuffer &scratchBuffer,
@@ -1117,6 +1118,8 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
             isect.SkipIntersection(&ray, si->tHit);
             continue;
         }
+
+        // MARK: * VolPath GBuffer
 
         // Initialize _visibleSurf_ at first intersection
         if (depth == 0 && visibleSurf) {
@@ -1453,8 +1456,7 @@ retry:
         // Divide by pi so that fully visible is one.
         Ray r = isect.SpawnRay(wi);
         if (!IntersectP(r, maxDist)) {
-            return illumScale * illuminant.Sample(lambda) *
-                   Dot(wi, n) / (Pi * pdf);
+            return illumScale * illuminant.Sample(lambda) * Dot(wi, n) / (Pi * pdf);
         }
     }
     return SampledSpectrum(0.);
@@ -2179,14 +2181,15 @@ Float MISWeight(const Integrator &integrator, Camera camera, Vertex *lightVertic
 
     Film film = camera.GetFilm();
     Float splatScale = Float(film.FullResolution().x) * Float(film.FullResolution().y) /
-        Float(film.PixelBounds().Area());
+                       Float(film.PixelBounds().Area());
 
     // Consider hypothetical connection strategies along the camera subpath
     Float ri = 1;
     for (int i = t - 1; i > 0; --i) {
         ri *= remap0(cameraVertices[i].pdfRev) / remap0(cameraVertices[i].pdfFwd);
         // See https://github.com/mmp/pbrt-v4/issues/347
-        if (i == 1) ri /= splatScale;
+        if (i == 1)
+            ri /= splatScale;
         if (!cameraVertices[i].delta && !cameraVertices[i - 1].delta)
             sumRi += ri;
     }
@@ -2202,7 +2205,8 @@ Float MISWeight(const Integrator &integrator, Camera camera, Vertex *lightVertic
     }
 
     // See https://github.com/mmp/pbrt-v4/issues/347
-    if (t == 1) sumRi /= splatScale;
+    if (t == 1)
+        sumRi /= splatScale;
     return 1 / (1 + sumRi);
 }
 
@@ -2302,11 +2306,12 @@ SampledSpectrum BDPTIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
                     // scenes where the camera has a finite aperture, since
                     // we don't have the CameraSample either so just have
                     // to pass (0.5,0.5) in for the lens sample...
-                    pstd::optional<CameraWiSample> cs =
-                        camera.SampleWi(Interaction(ray(100.f), nullptr), Point2f(0.5f, 0.5f), lambda);
+                    pstd::optional<CameraWiSample> cs = camera.SampleWi(
+                        Interaction(ray(100.f), nullptr), Point2f(0.5f, 0.5f), lambda);
                     CHECK_RARE(1e-3, !cs);
                     if (cs)
-                        weightFilms[BufferIndex(s, t)].AddSplat(cs->pRaster, value, lambda);
+                        weightFilms[BufferIndex(s, t)].AddSplat(cs->pRaster, value,
+                                                                lambda);
                 }
             }
             if (t != 1)
@@ -2359,7 +2364,7 @@ SampledSpectrum ConnectBDPT(const Integrator &integrator, SampledWavelengths &la
                     // See https://github.com/mmp/pbrt-v4/issues/347
                     Film film = camera.GetFilm();
                     L *= Float(film.FullResolution().x) * Float(film.FullResolution().y) /
-                        Float(film.PixelBounds().Area());
+                         Float(film.PixelBounds().Area());
                 }
             }
         }
@@ -2432,8 +2437,8 @@ SampledSpectrum ConnectBDPT(const Integrator &integrator, SampledWavelengths &la
         ++zeroRadiancePaths;
     pathLength << s + t - 2;
     // Compute MIS weight for connection strategy
-    Float misWeight = L ? MISWeight(integrator, camera, lightVertices, cameraVertices, sampled, s,
-                                    t, lightSampler)
+    Float misWeight = L ? MISWeight(integrator, camera, lightVertices, cameraVertices,
+                                    sampled, s, t, lightSampler)
                         : 0.f;
     PBRT_DBG("MIS weight for (s,t) = (%d, %d) connection: %f\n", s, t, misWeight);
     DCHECK(!IsNaN(misWeight));
@@ -2759,6 +2764,8 @@ STAT_INT_DISTRIBUTION(
 STAT_MEMORY_COUNTER("Memory/SPPM Pixels", pixelMemoryBytes);
 STAT_MEMORY_COUNTER("Memory/SPPM BSDF and Grid Memory", sppmMemoryArenaBytes);
 
+// MARK: SPPM Integrator
+
 // SPPMPixel Definition
 struct SPPMPixel {
     // SPPMPixel Public Members
@@ -2787,6 +2794,14 @@ struct SPPMPixel {
     std::atomic<int> m{0};
     RGB tau;
     Float n = 0;
+
+    struct MyInfo {
+        MyInfo() = default;
+
+        Point3f position;
+        Vector3f normal;
+        RGB albedoRGB;
+    } info;
 };
 
 // SPPMPixelListNode Definition
@@ -2964,6 +2979,34 @@ void SPPMIntegrator::Render() {
                         pixel.vp = {isect.p(), wo, bsdf, beta,
                                     lambda.SecondaryTerminated()};
                         haveSetVisiblePoint = true;
+                    }
+
+                    // MARK: * SPPM GBuffer
+                    if (IsDiffuse(flags) || (IsGlossy(flags) && depth == maxDepth)) {
+                        // Estimate BSDF's albedo
+                        // Define sample arrays _ucRho_ and _uRho_ for reflectance
+                        // estimate
+                        constexpr int nRhoSamples = 16;
+                        const Float ucRho[nRhoSamples] = {
+                            0.75741637, 0.37870818, 0.7083487, 0.18935409,
+                            0.9149363,  0.35417435, 0.5990858, 0.09467703,
+                            0.8578725,  0.45746812, 0.686759,  0.17708716,
+                            0.9674518,  0.2995429,  0.5083201, 0.047338516};
+                        const Point2f uRho[nRhoSamples] = {
+                            Point2f(0.855985, 0.570367), Point2f(0.381823, 0.851844),
+                            Point2f(0.285328, 0.764262), Point2f(0.733380, 0.114073),
+                            Point2f(0.542663, 0.344465), Point2f(0.127274, 0.414848),
+                            Point2f(0.964700, 0.947162), Point2f(0.594089, 0.643463),
+                            Point2f(0.095109, 0.170369), Point2f(0.825444, 0.263359),
+                            Point2f(0.429467, 0.454469), Point2f(0.244460, 0.816459),
+                            Point2f(0.756135, 0.731258), Point2f(0.516165, 0.152852),
+                            Point2f(0.180888, 0.214174), Point2f(0.898579, 0.503897)};
+
+                        SampledSpectrum albedo = bsdf.rho(isect.wo, ucRho, uRho);
+
+                        pixel.info.position = isect.p();
+                        pixel.info.normal = Vector3f(isect.n);
+                        pixel.info.albedoRGB = albedo.ToRGB(lambda, *colorSpace);
                     }
 
                     // Spawn ray from SPPM camera path vertex
@@ -3213,12 +3256,17 @@ void SPPMIntegrator::Render() {
             p.vp.bsdf = BSDF();
         });
 
+        // MARK: * SPPM Output
         // Periodically write SPPM image to disk
         if (iter + 1 == nIterations || (iter + 1 <= 64 && IsPowerOf2(iter + 1)) ||
             ((iter + 1) % 64 == 0)) {
             uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
-            Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
-                           {"R", "G", "B"});
+            // Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
+            //                {"R", "G", "B"});
+            Image rgbImage(
+                PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
+                {"R", "G", "B", "Position.R", "Position.G", "Position.B", "Normal.R",
+                 "Normal.G", "Normal.B", "Albedo.R", "Albedo.G", "Albedo.B"});
 
             ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
                 // Compute radiance _L_ for SPPM pixel _pPixel_
@@ -3226,7 +3274,27 @@ void SPPMIntegrator::Render() {
                 RGB L = pixel.Ld / (iter + 1) + pixel.tau / (np * Pi * Sqr(pixel.radius));
 
                 Point2i pImage = Point2i(pPixel - pixelBounds.pMin);
-                rgbImage.SetChannels(pImage, {L.r, L.g, L.b});
+                Point2i pImageSize = Point2i(pixelBounds.Diagonal());
+                // rgbImage.SetChannels(pImage, {L.r, L.g, L.b});
+                // RGB
+                rgbImage.SetChannel(pImage, 0, L.r);
+                rgbImage.SetChannel(pImage, 1, L.g);
+                rgbImage.SetChannel(pImage, 2, L.b);
+                // Position
+                // rgbImage.SetChannel(pImage, 3, pixel.vp.p.x);
+                // rgbImage.SetChannel(pImage, 4, pixel.vp.p.y);
+                // rgbImage.SetChannel(pImage, 5, pixel.vp.p.z);
+                rgbImage.SetChannel(pImage, 3, pixel.info.position.x);
+                rgbImage.SetChannel(pImage, 4, pixel.info.position.y);
+                rgbImage.SetChannel(pImage, 5, pixel.info.position.z);
+                // Normal
+                rgbImage.SetChannel(pImage, 6, pixel.info.normal.x);
+                rgbImage.SetChannel(pImage, 7, pixel.info.normal.y);
+                rgbImage.SetChannel(pImage, 8, pixel.info.normal.z);
+                // Albedo
+                rgbImage.SetChannel(pImage, 9, pixel.info.albedoRGB.r);
+                rgbImage.SetChannel(pImage, 10, pixel.info.albedoRGB.g);
+                rgbImage.SetChannel(pImage, 11, pixel.info.albedoRGB.b);
             });
 
             ImageMetadata metadata;

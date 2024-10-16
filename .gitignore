@@ -10,3 +10,4 @@ build_release/
 
 test.exr
 test*.exr
+.vscode/

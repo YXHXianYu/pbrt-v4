@@ -3464,7 +3464,7 @@ void SPPMIntegrator::Render() {
                 channels.push_back(StringPrintf("ZA-BiasHistory[%02d]", i));
             }
             for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                channels.push_back(StringPrintf("ZB-BiasReference[%02d]", i));
+                channels.push_back(StringPrintf("ZB-DeltaToReference[%02d]", i));
             }
             for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
                 channels.push_back(StringPrintf("ZC-VarianceHistory[%02d]", i));

@@ -11,3 +11,4 @@ build_release/
 test.exr
 test*.exr
 .vscode/
+result_*/

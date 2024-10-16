@@ -2766,11 +2766,34 @@ STAT_MEMORY_COUNTER("Memory/SPPM BSDF and Grid Memory", sppmMemoryArenaBytes);
 
 // MARK: SPPM Integrator
 
+// Kernel Function
+Float kernel_toshiya(Float t) {
+    Float t5 = t * t * t * t * t;
+    Float t4 = t * t * t * t;
+    Float t3 = t * t * t;
+    Float f = 1.0 - 6.0 * t5 + 15.0 * t4 - 10.0 * t3;
+    return f;
+}
+
+Float kernel_toshiya_1_derivative(Float t) {
+    Float t4 = t * t * t * t;
+    Float t3 = t * t * t;
+    Float f = -30.0 * t4 + 60.0 * t3 - 30.0 * t * t;
+    return f;
+}
+
+Float kernel_toshiya_2_derivative(Float t) {
+    Float t3 = t * t * t;
+    Float f = -120.0 * t3 + 180.0 * t * t - 60.0 * t;
+    return f;
+}
+
 // SPPMPixel Definition
 struct SPPMPixel {
     // SPPMPixel Public Members
     Float radius = 0;
     RGB Ld;
+
     struct VisiblePoint {
         // VisiblePoint Public Methods
         VisiblePoint() = default;
@@ -2780,7 +2803,8 @@ struct SPPMPixel {
               wo(wo),
               bsdf(bsdf),
               beta(beta),
-              secondaryLambdaTerminated(secondaryLambdaTerminated) {}
+              secondaryLambdaTerminated(secondaryLambdaTerminated),
+              photons(std::vector<PhotonInfo>(30)) {}
 
         // VisiblePoint Public Members
         Point3f p;
@@ -2789,11 +2813,35 @@ struct SPPMPixel {
         SampledSpectrum beta;
         bool secondaryLambdaTerminated;
 
+        struct PhotonInfo {
+            Float distance;
+            SampledSpectrum phi;              // beta * pixel.vp.bsdf.f(pixel.vp.wo, wi);
+            SampledWavelengths photonLambda;  // lambda
+            SampledSpectrum vp_beta;          // pixel.vp.beta
+        };
+
+        std::vector<PhotonInfo> photons;
+        uint32_t photon_count = 0;
     } vp;
     AtomicFloat Phi_i[3];
     std::atomic<int> m{0};
     RGB tau;
+    RGB L;
     Float n = 0;
+
+    // progressive error estimation (refer to this paper)
+    Float k_1 = 2.0 * Pi / 7.0;
+    Float k_2 = 10.0 * Pi / 168.0;
+    AtomicFloat Phi_i_2_derivative[3];
+    RGB tau_2_derivative;
+    RGB L_2_derivative;
+    std::vector<Float> x_j;  // for variance
+    Float bias = 0.0;
+    Float variance = 0.0;
+
+    std::vector<Float> bias_history;
+    std::vector<Float> variance_history;
+    std::vector<Float> L_history;
 
     struct MyInfo {
         MyInfo() = default;
@@ -2831,16 +2879,27 @@ void SPPMIntegrator::Render() {
     // Define variables for commonly used values in SPPM rendering
     int nIterations = samplerPrototype.SamplesPerPixel();
     ProgressReporter progress(2 * nIterations, "Rendering", Options->quiet);
-    const Float invSqrtSPP = 1.f / std::sqrt(nIterations);
+    const Float invSqrtSPP = 1.f / ::std::sqrt(nIterations);
     Film film = camera.GetFilm();
     Bounds2i pixelBounds = film.PixelBounds();
     int nPixels = pixelBounds.Area();
 
+    // printf("pixelBounds pMin(%d %d); pMax(%d %d)\n", pixelBounds.pMin.x,
+    //        pixelBounds.pMin.y, pixelBounds.pMax.x, pixelBounds.pMax.y);
+    // printf("nPixels: %d\n", nPixels);
+    // => pixelBounds pMin(0 0); pMax(384 384)
+    // => nPixels: 147456
+
     // Initialize _pixels_ array for SPPM
     CHECK(!pixelBounds.IsEmpty());
     Array2D<SPPMPixel> pixels(pixelBounds);
-    for (SPPMPixel &p : pixels)
+    for (SPPMPixel &p : pixels) {
         p.radius = initialSearchRadius;
+        p.x_j.resize(nIterations);
+        p.bias_history.resize(nIterations);
+        p.variance_history.resize(nIterations);
+        p.L_history.resize(nIterations);
+    }
     pixelMemoryBytes += pixels.size() * sizeof(SPPMPixel);
 
     // Create light samplers for SPPM rendering
@@ -2856,6 +2915,10 @@ void SPPMIntegrator::Render() {
         [this]() { return samplerPrototype.Clone(Allocator()); });
     pstd::vector<DigitPermutation> *digitPermutations(
         ComputeRadicalInversePermutations(digitPermutationsSeed));
+
+    // MARK: * 0. Iter & MySettings
+
+    const bool k_is_use_new_formulation = false;
 
     for (int iter = 0; iter < nIterations; ++iter) {
         // Connect to display server for SPPM if requested
@@ -2876,6 +2939,8 @@ void SPPMIntegrator::Render() {
                 });
         }
 
+        // MARK: * 1. Gen Visible Points
+
         // Generate SPPM visible points
         // Sample wavelengths for SPPM pass
         Float uLambda =
@@ -2883,6 +2948,11 @@ void SPPMIntegrator::Render() {
         const SampledWavelengths passLambda = film.SampleWavelengths(uLambda);
 
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
+            // printf("tileBounds pMin(%d %d); pMax(%d %d)\n", tileBounds.pMin.x,
+            //        tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
+            // => Here a thread will handle a tile of pixels
+            // => e.g. tileBounds pMin(64 0); pMax(96 32)
+
             // Follow camera paths for _tileBounds_ in image for SPPM
             ScratchBuffer &scratchBuffer = threadScratchBuffers.Get();
             Sampler sampler = threadSamplers.Get();
@@ -2981,7 +3051,7 @@ void SPPMIntegrator::Render() {
                         haveSetVisiblePoint = true;
                     }
 
-                    // MARK: * SPPM GBuffer
+                    // MARK: * (SPPM GBuffer)
                     if (IsDiffuse(flags) || (IsGlossy(flags) && depth == maxDepth)) {
                         // Estimate BSDF's albedo
                         // Define sample arrays _ucRho_ and _uRho_ for reflectance
@@ -3058,6 +3128,8 @@ void SPPMIntegrator::Render() {
         for (int i = 0; i < 3; ++i)
             gridRes[i] = std::max<int>(baseGridRes * diag[i] / maxDiag, 1);
 
+        // MARK: * 2. Build SPPM Grid
+
         // Add visible points to SPPM grid
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
             ScratchBuffer &scratchBuffer = threadScratchBuffers.Get();
@@ -3093,6 +3165,8 @@ void SPPMIntegrator::Render() {
                 }
             }
         });
+
+        // MARK: * 3. Trace Photons
 
         // Trace photons and accumulate contributions
         // Create per-thread scratch buffers for photon shooting
@@ -3184,11 +3258,20 @@ void SPPMIntegrator::Render() {
                                 SampledWavelengths photonLambda = lambda;
                                 if (pixel.vp.secondaryLambdaTerminated)
                                     photonLambda.TerminateSecondary();
-                                RGB Phi_i =
-                                    film.ToOutputRGB(pixel.vp.beta * Phi, photonLambda);
-                                for (int i = 0; i < 3; ++i)
-                                    pixel.Phi_i[i].Add(Phi_i[i]);
 
+                                // Delay calculation for Kernel-based PPM
+                                if (pixel.vp.photon_count < pixel.vp.photons.size()) {
+                                    auto photon = SPPMPixel::VisiblePoint::PhotonInfo{
+                                        Distance(pixel.vp.p, isect.p()), Phi,
+                                        photonLambda, pixel.vp.beta};
+                                    pixel.vp.photons[pixel.vp.photon_count++] = photon;
+                                }
+
+                                // RGB Phi_i =
+                                //     film.ToOutputRGB(pixel.vp.beta * Phi,
+                                //     photonLambda);
+                                // for (int i = 0; i < 3; ++i)
+                                //     pixel.Phi_i[i].Add(Phi_i[i]);
                                 ++pixel.m;
                             }
                         }
@@ -3231,18 +3314,109 @@ void SPPMIntegrator::Render() {
         progress.Update();
         photonPaths += photonsPerIteration;
 
+        // MARK: * 4. Update Infor
+
         // Update pixel values from this pass's photons
         ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
             SPPMPixel &p = pixels[pPixel];
             if (int m = p.m.load(std::memory_order_relaxed); m > 0) {
+                // Kernel-based PPM
+                Float max_distance = p.vp.photons[0].distance;
+                for (uint32_t i = 1; i < p.vp.photon_count; ++i) {
+                    auto photon = p.vp.photons[i];
+                    max_distance = std::max(max_distance, photon.distance);
+                }
+                // d_N(p): max_distance
+                Float dnp = 64.0 * max_distance;
+                Float inverse_dnp = 1.0 / dnp;
+                Float inverse_dnp2 = inverse_dnp * inverse_dnp;
+                // Delay calculation
+                for (uint32_t i = 0; i < p.vp.photon_count; ++i) {
+                    auto photon = p.vp.photons[i];
+                    {  // 0th derivative
+                        // Float k = 1.0;
+                        // Float k = kernel_toshiya(photon.distance * 100.0);
+                        Float k =
+                            kernel_toshiya(photon.distance * inverse_dnp) * inverse_dnp;
+                        SampledSpectrum Phi = photon.phi * k;
+                        RGB Phi_i =
+                            film.ToOutputRGB(photon.vp_beta * Phi, photon.photonLambda);
+                        for (int i = 0; i < 3; ++i)
+                            p.Phi_i[i].Add(Phi_i[i]);
+                    }
+
+                    {  // 2nd derivative
+                        Float k =
+                            kernel_toshiya_2_derivative(photon.distance * inverse_dnp) *
+                            inverse_dnp;
+                        k = std::abs(k);  // hack
+                        SampledSpectrum Phi = photon.phi * k;
+                        RGB Phi_i =
+                            film.ToOutputRGB(photon.vp_beta * Phi, photon.photonLambda);
+                        for (int i = 0; i < 3; ++i)
+                            p.Phi_i_2_derivative[i].Add(Phi_i[i]);
+                    }
+                }
+
                 // Compute new photon count and search radius given photons
                 Float gamma = (Float)2 / (Float)3;
                 Float nNew = p.n + gamma * m;
                 Float rNew = p.radius * std::sqrt(nNew / (p.n + m));
 
                 // Update $\tau$ for pixel
-                RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
-                p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
+                {  // 0th derivative
+                    RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
+                    p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
+                    p.L = p.tau / ((iter + 1) * photonsPerIteration * Pi *
+                                   Sqr(rNew));  // tau = Ld / (np * pi * r^2)
+                }
+                {  // 2nd derivative
+                    RGB Phi_i_2_derivative(p.Phi_i_2_derivative[0],
+                                           p.Phi_i_2_derivative[1],
+                                           p.Phi_i_2_derivative[2]);
+                    p.tau_2_derivative = (p.tau_2_derivative + Phi_i_2_derivative) *
+                                         Sqr(rNew) / Sqr(p.radius);
+                    p.L_2_derivative =
+                        p.tau_2_derivative /
+                        ((iter + 1) * photonsPerIteration * p.k_2 * Sqr(rNew));
+                }
+
+                // estimate bias & variance
+                { p.L_history[iter] = p.L.Average(); }
+                {
+                    // 1st
+                    // p.bias = 0.5 * rNew * rNew * p.k_2 * p.tau_2_derivative.Average();
+
+                    // 2nd
+                    // Equation (30)
+                    // Float L_2_derivative =
+                    //     p.L_2_derivative.Average() / (p.k_1 * rNew * rNew);
+                    // Equation (20)
+                    // p.bias = 0.5 * rNew * rNew * p.k_2 * L_2_derivative;
+
+                    // 3rd
+                    p.bias = 0.5 * Sqr(rNew) * p.k_2 * p.L_2_derivative.Average();
+
+                    // p.bias = std::abs(p.bias);
+                    p.bias_history[iter] = p.bias;
+                }
+                {
+                    p.x_j[iter] = p.L.Average() - p.bias;
+                    Float tmp1 = 0.0;  // sigma (x_j)^2
+                    Float tmp2 = 0.0;  // (sigma x_j)
+                    Float tmp3 = 0.0;  // (sigma x_j)^2 / i
+                    for (int j = 0; j <= iter; ++j) {
+                        tmp1 += p.x_j[j] * p.x_j[j];
+                        tmp2 += p.x_j[j];
+                    }
+                    tmp3 = tmp2 * tmp2 / (iter + 1.0);
+                    if (iter >= 1)
+                        p.variance = (tmp1 - tmp2) / iter;  // Equation (22)
+                    else
+                        p.variance = 0.0;
+                    // p.variance = std::abs(p.variance);
+                    p.variance_history[iter] = p.variance;
+                }
 
                 // Set remaining pixel values for next photon pass
                 p.n = nNew;
@@ -3250,10 +3424,14 @@ void SPPMIntegrator::Render() {
                 p.m = 0;
                 for (int i = 0; i < 3; ++i)
                     p.Phi_i[i] = (Float)0;
+                for (int i = 0; i < 3; ++i)
+                    p.Phi_i_2_derivative[i] = (Float)0;
             }
             // Reset _VisiblePoint_ in pixel
             p.vp.beta = SampledSpectrum(0.);
             p.vp.bsdf = BSDF();
+            p.vp.photon_count = 0;
+            // p.vp.photons.clear();
         });
 
         // MARK: * SPPM Output
@@ -3263,38 +3441,113 @@ void SPPMIntegrator::Render() {
             uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
             // Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
             //                {"R", "G", "B"});
-            Image rgbImage(
-                PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
-                {"R", "G", "B", "Position.R", "Position.G", "Position.B", "Normal.R",
-                 "Normal.G", "Normal.B", "Albedo.R", "Albedo.G", "Albedo.B"});
+
+            std::vector<std::string> channels = {"R",
+                                                 "G",
+                                                 "B",
+                                                 "Position.R",
+                                                 "Position.G",
+                                                 "Position.B",
+                                                 "Normal.R",
+                                                 "Normal.G",
+                                                 "Normal.B",
+                                                 "Albedo.R",
+                                                 "Albedo.G",
+                                                 "Albedo.B",
+                                                 "Bias",
+                                                 "Variance",
+                                                 "tau_2_derivative.R",
+                                                 "tau_2_derivative.G",
+                                                 "tau_2_derivative.B"};
+
+            for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                channels.push_back(StringPrintf("ZA-BiasHistory[%02d]", i));
+            }
+            for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                channels.push_back(StringPrintf("ZB-BiasReference[%02d]", i));
+            }
+            for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                channels.push_back(StringPrintf("ZC-VarianceHistory[%02d]", i));
+            }
+
+            Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()), channels);
 
             ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
                 // Compute radiance _L_ for SPPM pixel _pPixel_
                 const SPPMPixel &pixel = pixels[pPixel];
-                RGB L = pixel.Ld / (iter + 1) + pixel.tau / (np * Pi * Sqr(pixel.radius));
+
+                // origin
+                // RGB L = pixel.Ld / (iter + 1) + pixel.tau / (np * Pi *
+                // Sqr(pixel.radius));
+
+                // my modification
+                RGB L = pixel.Ld / (iter + 1) + pixel.L;
+
+                // RGB L_2der = pixel.Ld / (iter + 1) + pixel.tau_2_derivative / (np * Pi
+                // * Sqr(pixel.radius));
+
+                uint32_t id = 0;
 
                 Point2i pImage = Point2i(pPixel - pixelBounds.pMin);
                 Point2i pImageSize = Point2i(pixelBounds.Diagonal());
                 // rgbImage.SetChannels(pImage, {L.r, L.g, L.b});
                 // RGB
-                rgbImage.SetChannel(pImage, 0, L.r);
-                rgbImage.SetChannel(pImage, 1, L.g);
-                rgbImage.SetChannel(pImage, 2, L.b);
+                rgbImage.SetChannel(pImage, id++, L.r);
+                rgbImage.SetChannel(pImage, id++, L.g);
+                rgbImage.SetChannel(pImage, id++, L.b);
                 // Position
-                // rgbImage.SetChannel(pImage, 3, pixel.vp.p.x);
-                // rgbImage.SetChannel(pImage, 4, pixel.vp.p.y);
-                // rgbImage.SetChannel(pImage, 5, pixel.vp.p.z);
-                rgbImage.SetChannel(pImage, 3, pixel.info.position.x);
-                rgbImage.SetChannel(pImage, 4, pixel.info.position.y);
-                rgbImage.SetChannel(pImage, 5, pixel.info.position.z);
+                // rgbImage.SetChannel(pImage, id++, pixel.vp.p.x);
+                // rgbImage.SetChannel(pImage, id++, pixel.vp.p.y);
+                // rgbImage.SetChannel(pImage, id++, pixel.vp.p.z);
+                rgbImage.SetChannel(pImage, id++, pixel.info.position.x);
+                rgbImage.SetChannel(pImage, id++, pixel.info.position.y);
+                rgbImage.SetChannel(pImage, id++, pixel.info.position.z);
                 // Normal
-                rgbImage.SetChannel(pImage, 6, pixel.info.normal.x);
-                rgbImage.SetChannel(pImage, 7, pixel.info.normal.y);
-                rgbImage.SetChannel(pImage, 8, pixel.info.normal.z);
+                rgbImage.SetChannel(pImage, id++, pixel.info.normal.x);
+                rgbImage.SetChannel(pImage, id++, pixel.info.normal.y);
+                rgbImage.SetChannel(pImage, id++, pixel.info.normal.z);
                 // Albedo
-                rgbImage.SetChannel(pImage, 9, pixel.info.albedoRGB.r);
-                rgbImage.SetChannel(pImage, 10, pixel.info.albedoRGB.g);
-                rgbImage.SetChannel(pImage, 11, pixel.info.albedoRGB.b);
+                rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.r);
+                rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.g);
+                rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.b);
+                // Bias & Variance
+                rgbImage.SetChannel(pImage, id++, pixel.bias);
+                rgbImage.SetChannel(pImage, id++, pixel.variance);
+                // tau_2_derivative
+                rgbImage.SetChannel(pImage, id++, pixel.tau_2_derivative.r);
+                rgbImage.SetChannel(pImage, id++, pixel.tau_2_derivative.g);
+                rgbImage.SetChannel(pImage, id++, pixel.tau_2_derivative.b);
+                // Bias & Variance History
+                if (pImage.x == 1 && pImage.y == 1) {
+                    Float reference_value = 6e-3;
+                    // bias
+                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                        rgbImage.SetChannel(pImage, id++, reference_value);
+                    }
+                    // bias reference
+                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                        rgbImage.SetChannel(pImage, id++, reference_value);
+                    }
+                    // variance
+                    reference_value = 1e-4;  // TODO: variance
+                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                        rgbImage.SetChannel(pImage, id++, reference_value);
+                    }
+                } else {
+                    // bias
+                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                        rgbImage.SetChannel(pImage, id++, pixel.bias_history[i]);
+                    }
+                    // bias reference
+                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                        rgbImage.SetChannel(
+                            pImage, id++,
+                            std::abs(pixel.L_history[i] - pixel.L_history[iter]));
+                    }
+                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                        rgbImage.SetChannel(pImage, id++, pixel.variance_history[i]);
+                    }
+                }
             });
 
             ImageMetadata metadata;

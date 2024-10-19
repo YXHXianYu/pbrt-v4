@@ -29,7 +29,7 @@ namespace pbrt {
 class RGB {
   public:
     // RGB Public Methods
-    RGB() = default;
+    RGB() : r(0), g(0), b(0) {}
     PBRT_CPU_GPU
     RGB(Float r, Float g, Float b) : r(r), g(g), b(b) {}
 

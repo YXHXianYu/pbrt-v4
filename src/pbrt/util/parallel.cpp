@@ -343,6 +343,9 @@ void ParallelInit(int nThreads) {
     CHECK(!ParallelJob::threadPool);
     if (nThreads <= 0)
         nThreads = AvailableCores();
+    // nThreads = std::min(nThreads, 4);
+    printf("Max threads: %d\n", AvailableCores());
+    printf("Current using threads: %d\n", nThreads);
     ParallelJob::threadPool = new ThreadPool(nThreads);
 }
 

@@ -2901,8 +2901,9 @@ void SPPMIntegrator::Render() {
     // => pixelBounds pMin(0 0); pMax(384 384)
     // => nPixels: 147456
 
-    const std::string referenceFilename =
-        "./contemporary-bathroom-reference-resolution384x384-spp512-kernelversion.exr";
+    // const std::string referenceFilename =
+    //     "./contemporary-bathroom-reference-resolution384x384-spp512-kernelversion.exr";
+    const std::string referenceFilename = "test_2024-10-19_10-17-51.exr";
     auto referenceImage = pbrt::Image::Read(referenceFilename);
     auto referenceResolution = referenceImage.image.Resolution();
     assert(referenceResolution.x == pixelBounds.Diagonal().x &&
@@ -3386,18 +3387,18 @@ void SPPMIntegrator::Render() {
                     max_distance = std::max(max_distance, photon.distance);
                 }
                 // d_N(p): max_distance
-                Float dnp = 64.0 * max_distance;
-                Float inverse_dnp = 1.0 / dnp;
-                Float inverse_dnp2 = inverse_dnp * inverse_dnp;
-                Float inverse_dnp3 = inverse_dnp * inverse_dnp * inverse_dnp;
+                // Float dnp = 128.0 * max_distance;
+                Float h = p.radius;
+                Float inverse_h = 1.0 / h;
+                Float inverse_h2 = inverse_h * inverse_h;
+                Float inverse_h3 = inverse_h * inverse_h * inverse_h;
                 // Delay calculation
                 for (uint32_t i = 0; i < p.vp.photon_count; ++i) {
                     auto photon = p.vp.photons[i];
                     {  // 0th derivative
                         // Float k = 1.0;
                         // Float k = kernel_toshiya(photon.distance * 100.0);
-                        Float k =
-                            kernel_toshiya(photon.distance * inverse_dnp) * inverse_dnp;
+                        Float k = kernel_toshiya(photon.distance * inverse_h) * inverse_h;
                         if (k_is_debug_mode && pPixel.x == 1 && pPixel.y == 1) {
                             printf("\n%d:(%f)\n", iter, k);
                         }
@@ -3410,12 +3411,12 @@ void SPPMIntegrator::Render() {
 
                     {  // 2nd derivative
                         Float k =
-                            kernel_toshiya_2_derivative(photon.distance * inverse_dnp) *
-                            inverse_dnp3;
+                            kernel_toshiya_2_derivative(photon.distance * inverse_h) *
+                            inverse_h3;
                         if (k_is_debug_mode && pPixel.x == 1 && pPixel.y == 1) {
                             printf("\n%d:\t[%f]\n", iter, k);
                         }
-                        k = std::abs(k);  // hack
+                        // k = std::abs(k);  // wrong hack
                         SampledSpectrum Phi = photon.phi * k;
                         RGB Phi_i =
                             film.ToOutputRGB(photon.vp_beta * Phi, photon.photonLambda);
@@ -3453,47 +3454,6 @@ void SPPMIntegrator::Render() {
 
             // Update L history
             { p.L_history[iter] = p.L; }
-
-            // reference
-            {
-                Float N = (iter + 1);
-                p.L_sum += p.L;
-
-                // bias reference
-                RGB E = p.L_sum / N;
-                p.bias_reference[iter] = E - p.reference;
-
-                // variance reference
-                RGB sum;
-                for (uint32_t i = 0; i < N; i++) {
-                    for (uint32_t c = 0; c < 3; c++) {
-                        sum[c] += Sqr(p.L_history[i][c] - E[c]);
-                    }
-                }
-                sum /= N;
-                p.variance_reference[iter] = sum;
-
-                // mse reference
-                sum = RGB();
-                for (uint32_t i = 0; i < N; i++) {
-                    for (uint32_t c = 0; c < 3; c++) {
-                        sum[c] += Sqr(p.L_history[i][c] - p.reference[c]);
-                    }
-                }
-                sum /= N;
-                p.mse_reference[iter] = sum;
-
-                // check
-                for (uint32_t c = 0; c < 3; c++) {
-                    Float v1 =
-                        Sqr(p.bias_reference[iter][c]) + p.variance_reference[iter][c];
-                    Float v2 = p.mse_reference[iter][c];
-                    if (!(std::abs(v1 - v2) <= (std::min(v1, v2) * 1e-3))) {
-                        printf("\n%d: %f %f\n", iter, v1, v2);
-                        assert(false);
-                    }
-                }
-            }
 
             // estimate bias & variance
             {
@@ -3543,6 +3503,47 @@ void SPPMIntegrator::Render() {
                 }
                 // p.variance = std::abs(p.variance);
                 p.variance_history[iter] = p.variance;
+            }
+
+            // reference
+            {
+                Float N = (iter + 1);
+                p.L_sum += p.L;
+
+                // bias reference
+                RGB E = p.L_sum / N;
+                p.bias_reference[iter] = E - p.reference;
+
+                // variance reference
+                RGB sum;
+                for (uint32_t i = 0; i < N; i++) {
+                    for (uint32_t c = 0; c < 3; c++) {
+                        sum[c] += Sqr(p.L_history[i][c] - E[c]);
+                    }
+                }
+                sum /= N;
+                p.variance_reference[iter] = sum;
+
+                // mse reference
+                sum = RGB();
+                for (uint32_t i = 0; i < N; i++) {
+                    for (uint32_t c = 0; c < 3; c++) {
+                        sum[c] += Sqr(p.L_history[i][c] - p.reference[c]);
+                    }
+                }
+                sum /= N;
+                p.mse_reference[iter] = sum;
+
+                // check
+                for (uint32_t c = 0; c < 3; c++) {
+                    Float v1 =
+                        Sqr(p.bias_reference[iter][c]) + p.variance_reference[iter][c];
+                    Float v2 = p.mse_reference[iter][c];
+                    if (!(std::abs(v1 - v2) <= (std::min(v1, v2) * 1e-3))) {
+                        printf("\n%d: %f %f\n", iter, v1, v2);
+                        assert(false);
+                    }
+                }
             }
 
             // Set remaining pixel values for next photon pass
@@ -3634,7 +3635,8 @@ void SPPMIntegrator::Render() {
                 // Sqr(pixel.radius));
 
                 // my modification
-                RGB L = pixel.Ld / (iter + 1) + pixel.L;
+                // RGB L = pixel.Ld / (iter + 1) + pixel.L;
+                RGB L = pixel.L;
 
                 // RGB L_2der = pixel.Ld / (iter + 1) + pixel.tau_2_derivative / (np * Pi
                 // * Sqr(pixel.radius));

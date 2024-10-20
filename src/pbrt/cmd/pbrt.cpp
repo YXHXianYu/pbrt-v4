@@ -161,6 +161,14 @@ int main(int argc, char *argv[]) {
             ParseArg(&iter, args.end(), "gpu", &options.useGPU, onError) ||
             ParseArg(&iter, args.end(), "gpu-device", &options.gpuDevice, onError) ||
 #endif
+            // yxh
+            ParseArg(&iter, args.end(), "my-reference-path",
+                     &options.myReferenceImagePath, onError) ||
+            ParseArg(&iter, args.end(), "my-sppm-photons-per-iter",
+                     &options.mySppmPhotonsPerIter, onError) ||
+            ParseArg(&iter, args.end(), "only-output-luminance",
+                     &options.isOnlyOutputLuminance, onError) ||
+            // pbrt
             ParseArg(&iter, args.end(), "debugstart", &options.debugStart, onError) ||
             ParseArg(&iter, args.end(), "disable-image-textures",
                      &options.disableImageTextures, onError) ||

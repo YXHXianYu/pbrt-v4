@@ -35,6 +35,10 @@ struct BasicPBRTOptions {
 
 // PBRTOptions Definition
 struct PBRTOptions : BasicPBRTOptions {
+    std::string myReferenceImagePath;
+    pstd::optional<int> mySppmPhotonsPerIter;
+    bool isOnlyOutputLuminance = false;
+
     int nThreads = 0;
     LogLevel logLevel = LogLevel::Error;
     std::string logFile;

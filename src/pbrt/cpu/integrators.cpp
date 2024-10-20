@@ -3411,6 +3411,12 @@ void SPPMIntegrator::Render() {
 
             int m = p.m.load(std::memory_order_relaxed);
 
+            p.L = p.Ld / (iter + 1);  // 算上ray tracing时，每个点对光源采样的贡献 +
+                                      // ray直接打到光源的贡献
+            for (uint32_t c = 0; c < 3; c++)
+                if (p.L[c] < 0)
+                    p.L[c] = 0;
+
             // Kernel-based PPM
             if (m == 0 && p.n == 0) {
                 reset_visible_point();
@@ -3430,9 +3436,7 @@ void SPPMIntegrator::Render() {
                 RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
                 p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
                 // k_1是标准化参数（同论文），为了补正constants替换为kernel后，画面变暗。k_1的推导详见yxh的笔记
-                p.L = p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
-                p.L += p.Ld / (iter + 1);  // 算上ray tracing时，每个点对光源采样的贡献 +
-                                           // ray直接打到光源的贡献
+                p.L += p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
             }
             {  // 2nd derivative
                 RGB Phi_i_2_derivative(p.Phi_i_2_derivative[0], p.Phi_i_2_derivative[1],
@@ -3535,6 +3539,7 @@ void SPPMIntegrator::Render() {
                     // Compute radiance _L_ for SPPM pixel _pPixel_
                     const SPPMPixel &pixel = pixels[pPixel];
 
+                    // RGB L = pixel.Ld / (iter + 1) + pixel.L;
                     RGB L = pixel.L;  // direct illumination is already included in L
 
                     uint32_t id = 0;

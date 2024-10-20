@@ -13,3 +13,5 @@
     * **注意，代码中疑似有bug，在spp256 + 1e7光子情况下，最后输出结果可能会变成黑色。所以我这里附带了历史RGB**
   * `--my-reference-path`
     * 从命令行指定Refenrece Image
+* 推荐参数
+  * 根目录下的reference使用spp=256, ppi=8e6，跑了大约8小时得到（cpu i5-12400F）

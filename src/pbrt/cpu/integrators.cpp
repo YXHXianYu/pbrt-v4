@@ -2888,8 +2888,6 @@ void SPPMIntegrator::Render() {
                               RemoveExtension(camera.GetFilm().GetFilename()));
     // Define variables for commonly used values in SPPM rendering
     int nIterations = samplerPrototype.SamplesPerPixel();
-    ProgressReporter progress(2 * nIterations, "Rendering",
-                              Options->quiet || k_is_progress_quiet);
     const Float invSqrtSPP = 1.f / ::std::sqrt(nIterations);
     Film film = camera.GetFilm();
     Bounds2i pixelBounds = film.PixelBounds();
@@ -2915,8 +2913,15 @@ void SPPMIntegrator::Render() {
     }
     auto referenceImage = pbrt::Image::Read(referenceImagePath);
     auto referenceResolution = referenceImage.image.Resolution();
-    assert(referenceResolution.x == pixelBounds.Diagonal().x &&
-           referenceResolution.y == pixelBounds.Diagonal().y);
+    bool is_enabled_reference = (referenceResolution.x == pixelBounds.Diagonal().x &&
+                                 referenceResolution.y == pixelBounds.Diagonal().y);
+    if (!is_enabled_reference) {
+        Warning("[YXH Extension] Resolution of reference image is not matched with the "
+                "rendering image. The results of Reference/MseRef/etc will be undefined. "
+                "(reference: %dx%d, rendering: %dx%d)",
+                referenceResolution.x, referenceResolution.y, pixelBounds.Diagonal().x,
+                pixelBounds.Diagonal().y);
+    }
 
     // Initialize _pixels_ array for SPPM
     CHECK(!pixelBounds.IsEmpty());
@@ -2927,14 +2932,16 @@ void SPPMIntegrator::Render() {
         for (SPPMPixel &p : pixels) {
             p.radius = initialSearchRadius;
 
-            // Be careful! The channels must be checked manually!
-            Point2i pos = Point2i(x, y);
-            p.reference.r = referenceImage.image.GetChannel(pos, 2);  // R
-            p.reference.g = referenceImage.image.GetChannel(pos, 1);  // G
-            p.reference.b = referenceImage.image.GetChannel(pos, 0);  // B
-            if (++x == pixelBounds.Diagonal().x) {
-                x = 0;
-                ++y;
+            if (is_enabled_reference) {
+                // Be careful! The channels must be checked manually!
+                Point2i pos = Point2i(x, y);
+                p.reference.r = referenceImage.image.GetChannel(pos, 2);  // R
+                p.reference.g = referenceImage.image.GetChannel(pos, 1);  // G
+                p.reference.b = referenceImage.image.GetChannel(pos, 0);  // B
+                if (++x == pixelBounds.Diagonal().x) {
+                    x = 0;
+                    ++y;
+                }
             }
 
             p.x_j.resize(nIterations);
@@ -2968,6 +2975,9 @@ void SPPMIntegrator::Render() {
     // MARK: * 0. Iter & MySettings
 
     const bool k_is_use_new_formulation = false;
+
+    ProgressReporter progress(2 * nIterations, "Rendering",
+                              Options->quiet || k_is_progress_quiet);
 
     for (int iter = 0; iter < nIterations; ++iter) {
         // Connect to display server for SPPM if requested
@@ -3420,7 +3430,9 @@ void SPPMIntegrator::Render() {
                 RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
                 p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
                 // k_1是标准化参数（同论文），为了补正constants替换为kernel后，画面变暗。k_1的推导详见yxh的笔记
-                p.L = p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
+                p.L = p.tau / ((iter + 1) * photonsPerIteration * Pi * Sqr(rNew));
+                p.L += p.Ld / (iter + 1);  // 算上ray tracing时，每个点对光源采样的贡献 +
+                                           // ray直接打到光源的贡献
             }
             {  // 2nd derivative
                 RGB Phi_i_2_derivative(p.Phi_i_2_derivative[0], p.Phi_i_2_derivative[1],
@@ -3523,8 +3535,7 @@ void SPPMIntegrator::Render() {
                     // Compute radiance _L_ for SPPM pixel _pPixel_
                     const SPPMPixel &pixel = pixels[pPixel];
 
-                    // RGB L = pixel.Ld / (iter + 1) + pixel.L;
-                    RGB L = pixel.L;
+                    RGB L = pixel.L;  // direct illumination is already included in L
 
                     uint32_t id = 0;
 

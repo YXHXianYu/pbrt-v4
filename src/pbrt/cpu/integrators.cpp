@@ -2789,6 +2789,7 @@ Float kernel_toshiya_2_derivative(Float t) {
 }
 
 const bool k_is_debug_mode = false;
+const bool k_is_progress_quiet = true;
 
 // SPPMPixel Definition
 struct SPPMPixel {
@@ -2838,19 +2839,21 @@ struct SPPMPixel {
     AtomicFloat Phi_i_2_derivative[3];
     RGB tau_2_derivative;
     RGB L_2_derivative;
+    RGB bias = RGB();
+    RGB variance = RGB();
+
+    RGB mse_estimate_sum = RGB();
+    RGB mse_reference_sum = RGB();
+
     std::vector<RGB> x_j;  // for variance
-    RGB bias = RGB(0.0, 0.0, 0.0);
-    RGB variance = RGB(0.0, 0.0, 0.0);
 
-    std::vector<RGB> bias_history;
-    std::vector<RGB> variance_history;
-    std::vector<RGB> L_history;
-    std::vector<RGB> D_history;  // used to temp or debug
-
-    RGB L_sum;
-    std::vector<RGB> bias_reference;
-    std::vector<RGB> variance_reference;
+    std::vector<RGB> bias_estimate;
+    std::vector<RGB> variance_estimate;
+    std::vector<RGB> L_estimate;
+    std::vector<RGB> mse_estimate;
     std::vector<RGB> mse_reference;
+
+    std::vector<RGB> temp_vec;  // used to temp or debug
 
     RGB reference;
 
@@ -2889,7 +2892,8 @@ void SPPMIntegrator::Render() {
                               RemoveExtension(camera.GetFilm().GetFilename()));
     // Define variables for commonly used values in SPPM rendering
     int nIterations = samplerPrototype.SamplesPerPixel();
-    ProgressReporter progress(nIterations, "Rendering", Options->quiet);
+    ProgressReporter progress(nIterations, "Rendering",
+                              Options->quiet || k_is_progress_quiet);
     const Float invSqrtSPP = 1.f / ::std::sqrt(nIterations);
     Film film = camera.GetFilm();
     Bounds2i pixelBounds = film.PixelBounds();
@@ -2901,9 +2905,8 @@ void SPPMIntegrator::Render() {
     // => pixelBounds pMin(0 0); pMax(384 384)
     // => nPixels: 147456
 
-    // const std::string referenceFilename =
-    //     "./contemporary-bathroom-reference-resolution384x384-spp512-kernelversion.exr";
-    const std::string referenceFilename = "test_2024-10-19_10-17-51.exr";
+    const std::string referenceFilename =
+        "bathroom-reference-resolution384x384-sppm-kervel.v2-spp256-ppi8e6.exr";
     auto referenceImage = pbrt::Image::Read(referenceFilename);
     auto referenceResolution = referenceImage.image.Resolution();
     assert(referenceResolution.x == pixelBounds.Diagonal().x &&
@@ -2931,14 +2934,14 @@ void SPPMIntegrator::Render() {
             // p.vp.photons = std::vector<SPPMPixel::VisiblePoint::PhotonInfo>(30);
 
             p.x_j.resize(nIterations);
-            p.bias_history.resize(nIterations);
-            p.variance_history.resize(nIterations);
-            p.L_history.resize(nIterations);
-            p.D_history.resize(nIterations);
 
-            p.bias_reference.resize(nIterations);
-            p.variance_reference.resize(nIterations);
+            p.bias_estimate.resize(nIterations);
+            p.variance_estimate.resize(nIterations);
+            p.L_estimate.resize(nIterations);
+            p.mse_estimate.resize(nIterations);
             p.mse_reference.resize(nIterations);
+
+            p.temp_vec.resize(nIterations);
         }
     }
 
@@ -2964,22 +2967,22 @@ void SPPMIntegrator::Render() {
 
     for (int iter = 0; iter < nIterations; ++iter) {
         // Connect to display server for SPPM if requested
-        if (iter == 0 && !Options->displayServer.empty()) {
-            DisplayDynamic(
-                film.GetFilename(), Point2i(pixelBounds.Diagonal()), {"R", "G", "B"},
-                [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
-                    int index = 0;
-                    uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
-                    for (Point2i pPixel : b) {
-                        const SPPMPixel &pixel = pixels[pPixel];
-                        RGB rgb = pixel.Ld / (iter + 1) +
-                                  pixel.tau / (np * Pi * Sqr(pixel.radius));
-                        for (int c = 0; c < 3; ++c)
-                            displayValue[c][index] = rgb[c];
-                        ++index;
-                    }
-                });
-        }
+        // if (iter == 0 && !Options->displayServer.empty()) {
+        //     DisplayDynamic(
+        //         film.GetFilename(), Point2i(pixelBounds.Diagonal()), {"R", "G", "B"},
+        //         [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
+        //             int index = 0;
+        //             uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
+        //             for (Point2i pPixel : b) {
+        //                 const SPPMPixel &pixel = pixels[pPixel];
+        //                 RGB rgb = pixel.Ld / (iter + 1) +
+        //                           pixel.tau / (np * Pi * Sqr(pixel.radius));
+        //                 for (int c = 0; c < 3; ++c)
+        //                     displayValue[c][index] = rgb[c];
+        //                 ++index;
+        //             }
+        //         });
+        // }
 
         // MARK: * 1. Gen Visible Points
 
@@ -3216,6 +3219,9 @@ void SPPMIntegrator::Render() {
         ThreadLocal<ScratchBuffer> photonShootScratchBuffers(
             []() { return ScratchBuffer(); });
 
+        AtomicFloat t1(0.0);
+        AtomicFloat t2(0.0);
+
         ParallelFor(0, photonsPerIteration, [&](int64_t start, int64_t end) {
             // Follow photon paths for photon index range _start_ - _end_
             ScratchBuffer &scratchBuffer = photonShootScratchBuffers.Get();
@@ -3295,26 +3301,44 @@ void SPPMIntegrator::Render() {
                                     continue;
                                 // Update _pixel_ $\Phi$ and $m$ for nearby photon
                                 Vector3f wi = -photonRay.d;
-                                SampledSpectrum Phi =
-                                    beta * pixel.vp.bsdf.f(pixel.vp.wo, wi);
                                 // Update _Phi_i_ for photon contribution
                                 SampledWavelengths photonLambda = lambda;
                                 if (pixel.vp.secondaryLambdaTerminated)
                                     photonLambda.TerminateSecondary();
 
-                                // Delay calculation for Kernel-based PPM
-                                if (pixel.vp.photon_count < pixel.vp.photons.size()) {
-                                    auto photon = SPPMPixel::VisiblePoint::PhotonInfo{
-                                        Distance(pixel.vp.p, isect.p()), Phi,
-                                        photonLambda, pixel.vp.beta};
-                                    pixel.vp.photons[pixel.vp.photon_count++] = photon;
+                                Float distance = Distance(pixel.vp.p, isect.p());
+
+                                Float h = pixel.radius;
+                                Float inverse_h = 1.0 / h;
+                                Float inverse_h2 = inverse_h * inverse_h;
+                                Float inverse_h3 = inverse_h * inverse_h * inverse_h;
+
+                                {  // 0th derivative
+                                    // Float k = 1.0;
+
+                                    // 这里的inverse_h是一个标准化，而不应该看作窗宽h，所以不应该加修正项
+                                    Float k = kernel_toshiya(distance * inverse_h);
+
+                                    SampledSpectrum Phi =
+                                        beta * pixel.vp.bsdf.f(pixel.vp.wo, wi) * k;
+                                    RGB Phi_i = film.ToOutputRGB(pixel.vp.beta * Phi,
+                                                                 photonLambda);
+                                    for (int i = 0; i < 3; ++i)
+                                        pixel.Phi_i[i].Add(Phi_i[i]);
                                 }
 
-                                // RGB Phi_i =
-                                //     film.ToOutputRGB(pixel.vp.beta * Phi,
-                                //     photonLambda);
-                                // for (int i = 0; i < 3; ++i)
-                                //     pixel.Phi_i[i].Add(Phi_i[i]);
+                                {  // 2nd derivative
+                                    Float k =
+                                        kernel_toshiya_2_derivative(distance * inverse_h);
+
+                                    SampledSpectrum Phi =
+                                        beta * pixel.vp.bsdf.f(pixel.vp.wo, wi) * k;
+                                    RGB Phi_i = film.ToOutputRGB(pixel.vp.beta * Phi,
+                                                                 photonLambda);
+                                    for (int i = 0; i < 3; ++i)
+                                        pixel.Phi_i_2_derivative[i].Add(Phi_i[i]);
+                                }
+
                                 ++pixel.m;
                             }
                         }
@@ -3359,6 +3383,8 @@ void SPPMIntegrator::Render() {
 
         // MARK: * 4. Update Infor
 
+        Float effective_photon_count = 0;
+
         // Update pixel values from this pass's photons
         ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
             SPPMPixel &p = pixels[pPixel];
@@ -3380,51 +3406,7 @@ void SPPMIntegrator::Render() {
                 return;
             }
 
-            if (m > 0) {
-                Float max_distance = p.vp.photons[0].distance;
-                for (uint32_t i = 1; i < p.vp.photon_count; ++i) {
-                    auto photon = p.vp.photons[i];
-                    max_distance = std::max(max_distance, photon.distance);
-                }
-                // d_N(p): max_distance
-                // Float dnp = 128.0 * max_distance;
-                Float h = p.radius;
-                Float inverse_h = 1.0 / h;
-                Float inverse_h2 = inverse_h * inverse_h;
-                Float inverse_h3 = inverse_h * inverse_h * inverse_h;
-                // Delay calculation
-                for (uint32_t i = 0; i < p.vp.photon_count; ++i) {
-                    auto photon = p.vp.photons[i];
-                    {  // 0th derivative
-                        // Float k = 1.0;
-                        // Float k = kernel_toshiya(photon.distance * 100.0);
-                        Float k = kernel_toshiya(photon.distance * inverse_h) * inverse_h;
-                        if (k_is_debug_mode && pPixel.x == 1 && pPixel.y == 1) {
-                            printf("\n%d:(%f)\n", iter, k);
-                        }
-                        SampledSpectrum Phi = photon.phi * k;
-                        RGB Phi_i =
-                            film.ToOutputRGB(photon.vp_beta * Phi, photon.photonLambda);
-                        for (int i = 0; i < 3; ++i)
-                            p.Phi_i[i].Add(Phi_i[i]);
-                    }
-
-                    {  // 2nd derivative
-                        Float k =
-                            kernel_toshiya_2_derivative(photon.distance * inverse_h) *
-                            inverse_h3;
-                        if (k_is_debug_mode && pPixel.x == 1 && pPixel.y == 1) {
-                            printf("\n%d:\t[%f]\n", iter, k);
-                        }
-                        // k = std::abs(k);  // wrong hack
-                        SampledSpectrum Phi = photon.phi * k;
-                        RGB Phi_i =
-                            film.ToOutputRGB(photon.vp_beta * Phi, photon.photonLambda);
-                        for (int i = 0; i < 3; ++i)
-                            p.Phi_i_2_derivative[i].Add(Phi_i[i]);
-                    }
-                }
-            }
+            effective_photon_count += m;
 
             // Compute new photon count and search radius given photons
             Float gamma = (Float)2 / (Float)3;  // the $alpha$ in paper
@@ -3436,12 +3418,8 @@ void SPPMIntegrator::Render() {
             {  // 0th derivative
                 RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
                 p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
-                p.L = p.tau / ((iter + 1) * photonsPerIteration * Pi *
-                               Sqr(rNew));  // tau = Ld / (np * pi(or k_1?) * r^2)
-                if (k_is_debug_mode && pPixel.x == 350 && pPixel.y == 350) {
-                    printf("\n%d: %.2f %.2f %.2f <=> %.2f %.2f %.2f\n", iter, p.tau[0],
-                           p.tau[1], p.tau[2], p.L[0], p.L[1], p.L[2]);
-                }
+                // k_1是标准化参数（同论文），为了补正constants替换为kernel后，画面变暗。k_1的推导详见yxh的笔记
+                p.L = p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
             }
             {  // 2nd derivative
                 RGB Phi_i_2_derivative(p.Phi_i_2_derivative[0], p.Phi_i_2_derivative[1],
@@ -3453,39 +3431,17 @@ void SPPMIntegrator::Render() {
             }
 
             // Update L history
-            { p.L_history[iter] = p.L; }
+            { p.L_estimate[iter] = p.L; }
 
-            // estimate bias & variance
-            {
-                // 1st
-                // p.bias = 0.5 * rNew * rNew * p.k_2 * p.tau_2_derivative.Average();
-
-                // 2nd
-                // Equation (30)
-                // Float L_2_derivative =
-                //     p.L_2_derivative.Average() / (p.k_1 * rNew * rNew);
-                // Equation (20)
-                // p.bias = 0.5 * rNew * rNew * p.k_2 * L_2_derivative;
-
-                // 3rd
-                // p.bias = 0.5 * Sqr(rNew) * p.k_2 * p.L_2_derivative.Average();
-                // Float tmp = p.L_2_derivative.Average();
-
-                // 4th
+            {  // bias estimate
                 p.bias = 0.5 * Sqr(rNew) * p.k_2 * p.L_2_derivative;
                 RGB tmp = p.L_2_derivative;
 
-                if (k_is_debug_mode && pPixel.x == 1 && pPixel.y == 1) {
-                    printf("\n%d:\tradius=%f; Sqr(radius)=%f; k_2=%f; p.L_2_dex=%f\n",
-                           iter, p.radius, Sqr(p.radius), p.k_2,
-                           p.L_2_derivative.Average());
-                }
-
                 // p.bias = std::abs(p.bias);
-                p.bias_history[iter] = p.bias;
-                p.D_history[iter] = tmp;
+                p.bias_estimate[iter] = p.bias;
+                p.temp_vec[iter] = tmp;
             }
-            {
+            {  // variance estimate
                 p.x_j[iter] = p.L - p.bias;
                 for (uint32_t channel = 0; channel < 3; channel++) {
                     Float tmp1 = 0.0;  // sigma (x_j)^2
@@ -3502,48 +3458,20 @@ void SPPMIntegrator::Render() {
                         p.variance[channel] = 0.0;
                 }
                 // p.variance = std::abs(p.variance);
-                p.variance_history[iter] = p.variance;
+                p.variance_estimate[iter] = p.variance;
             }
-
-            // reference
-            {
-                Float N = (iter + 1);
-                p.L_sum += p.L;
-
-                // bias reference
-                RGB E = p.L_sum / N;
-                p.bias_reference[iter] = E - p.reference;
-
-                // variance reference
-                RGB sum;
-                for (uint32_t i = 0; i < N; i++) {
-                    for (uint32_t c = 0; c < 3; c++) {
-                        sum[c] += Sqr(p.L_history[i][c] - E[c]);
-                    }
-                }
-                sum /= N;
-                p.variance_reference[iter] = sum;
-
-                // mse reference
-                sum = RGB();
-                for (uint32_t i = 0; i < N; i++) {
-                    for (uint32_t c = 0; c < 3; c++) {
-                        sum[c] += Sqr(p.L_history[i][c] - p.reference[c]);
-                    }
-                }
-                sum /= N;
-                p.mse_reference[iter] = sum;
-
-                // check
+            {  // mse estimate
                 for (uint32_t c = 0; c < 3; c++) {
-                    Float v1 =
-                        Sqr(p.bias_reference[iter][c]) + p.variance_reference[iter][c];
-                    Float v2 = p.mse_reference[iter][c];
-                    if (!(std::abs(v1 - v2) <= (std::min(v1, v2) * 1e-3))) {
-                        printf("\n%d: %f %f\n", iter, v1, v2);
-                        assert(false);
-                    }
+                    p.mse_estimate_sum[c] +=
+                        Sqr(p.bias_estimate[iter][c]) + p.variance[c];
                 }
+                p.mse_estimate[iter] = p.mse_estimate_sum / (iter + 1);
+            }
+            {  // mse reference
+                for (uint32_t c = 0; c < 3; c++) {
+                    p.mse_reference_sum[c] += Sqr(p.L_estimate[iter][c] - p.reference[c]);
+                }
+                p.mse_reference[iter] = p.mse_reference_sum / (iter + 1);
             }
 
             // Set remaining pixel values for next photon pass
@@ -3558,14 +3486,15 @@ void SPPMIntegrator::Render() {
             reset_visible_point();
         });
 
+        effective_photon_count /= nPixels;
+
+        printf("iter: %d/%d, Average photons per vp: %f\n", iter, nIterations,
+               effective_photon_count);
+
         // MARK: * SPPM Output
         // Periodically write SPPM image to disk
         if (iter + 1 == nIterations || (iter + 1 <= 64 && IsPowerOf2(iter + 1)) ||
             ((iter + 1) % 64 == 0)) {
-            uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
-            // Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
-            //                {"R", "G", "B"});
-
             std::vector<std::string> channels = {"A1-L.R",
                                                  "A1-L.G",
                                                  "A1-L.B",
@@ -3599,19 +3528,14 @@ void SPPMIntegrator::Render() {
                 channels.push_back(StringPrintf("B2-Bias[%03d].B", i));
             }
             for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                channels.push_back(StringPrintf("B3-BiasRef[%03d].R", i));
-                channels.push_back(StringPrintf("B3-BiasRef[%03d].G", i));
-                channels.push_back(StringPrintf("B3-BiasRef[%03d].B", i));
-            }
-            for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
                 channels.push_back(StringPrintf("B4-Variance[%03d].R", i));
                 channels.push_back(StringPrintf("B4-Variance[%03d].G", i));
                 channels.push_back(StringPrintf("B4-Variance[%03d].B", i));
             }
             for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                channels.push_back(StringPrintf("B5-VarianceRef[%03d].R", i));
-                channels.push_back(StringPrintf("B5-VarianceRef[%03d].G", i));
-                channels.push_back(StringPrintf("B5-VarianceRef[%03d].B", i));
+                channels.push_back(StringPrintf("B5-MSE[%03d].R", i));
+                channels.push_back(StringPrintf("B5-MSE[%03d].G", i));
+                channels.push_back(StringPrintf("B5-MSE[%03d].B", i));
             }
             for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
                 channels.push_back(StringPrintf("B6-MSERef[%03d].R", i));
@@ -3680,33 +3604,27 @@ void SPPMIntegrator::Render() {
 
                 // L
                 for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    rgbImage.SetChannel(pImage, id++, pixel.L_history[i].r);
-                    rgbImage.SetChannel(pImage, id++, pixel.L_history[i].g);
-                    rgbImage.SetChannel(pImage, id++, pixel.L_history[i].b);
+                    rgbImage.SetChannel(pImage, id++, pixel.L_estimate[i].r);
+                    rgbImage.SetChannel(pImage, id++, pixel.L_estimate[i].g);
+                    rgbImage.SetChannel(pImage, id++, pixel.L_estimate[i].b);
                 }
                 // bias
                 for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    rgbImage.SetChannel(pImage, id++, pixel.bias_history[i].r);
-                    rgbImage.SetChannel(pImage, id++, pixel.bias_history[i].g);
-                    rgbImage.SetChannel(pImage, id++, pixel.bias_history[i].b);
-                }
-                // bias ref
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    rgbImage.SetChannel(pImage, id++, pixel.bias_reference[i].r);
-                    rgbImage.SetChannel(pImage, id++, pixel.bias_reference[i].g);
-                    rgbImage.SetChannel(pImage, id++, pixel.bias_reference[i].b);
+                    rgbImage.SetChannel(pImage, id++, pixel.bias_estimate[i].r);
+                    rgbImage.SetChannel(pImage, id++, pixel.bias_estimate[i].g);
+                    rgbImage.SetChannel(pImage, id++, pixel.bias_estimate[i].b);
                 }
                 // variance
                 for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    rgbImage.SetChannel(pImage, id++, pixel.variance_history[i].r);
-                    rgbImage.SetChannel(pImage, id++, pixel.variance_history[i].g);
-                    rgbImage.SetChannel(pImage, id++, pixel.variance_history[i].b);
+                    rgbImage.SetChannel(pImage, id++, pixel.variance_estimate[i].r);
+                    rgbImage.SetChannel(pImage, id++, pixel.variance_estimate[i].g);
+                    rgbImage.SetChannel(pImage, id++, pixel.variance_estimate[i].b);
                 }
-                // variance ref
+                // mse ref
                 for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    rgbImage.SetChannel(pImage, id++, pixel.variance_reference[i].r);
-                    rgbImage.SetChannel(pImage, id++, pixel.variance_reference[i].g);
-                    rgbImage.SetChannel(pImage, id++, pixel.variance_reference[i].b);
+                    rgbImage.SetChannel(pImage, id++, pixel.mse_estimate[i].r);
+                    rgbImage.SetChannel(pImage, id++, pixel.mse_estimate[i].g);
+                    rgbImage.SetChannel(pImage, id++, pixel.mse_estimate[i].b);
                 }
                 // mse ref
                 for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
@@ -3716,9 +3634,9 @@ void SPPMIntegrator::Render() {
                 }
                 // tmp (D)
                 for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    rgbImage.SetChannel(pImage, id++, pixel.D_history[i].r);
-                    rgbImage.SetChannel(pImage, id++, pixel.D_history[i].g);
-                    rgbImage.SetChannel(pImage, id++, pixel.D_history[i].b);
+                    rgbImage.SetChannel(pImage, id++, pixel.temp_vec[i].r);
+                    rgbImage.SetChannel(pImage, id++, pixel.temp_vec[i].g);
+                    rgbImage.SetChannel(pImage, id++, pixel.temp_vec[i].b);
                 }
             });
 

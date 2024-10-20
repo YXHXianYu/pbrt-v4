@@ -3,7 +3,7 @@
 ## 关于DataMaker
 
 * 用法：切换到 `data-maker` 分支，编译完成后，在项目根目录下执行 `python .\data_maker.py` 即可
-* `data_maker.py` 脚本可以方便的批量生成数据，让电脑跑一晚上~~，从而影响舍友睡眠~~
+* `data_maker.py` 脚本可以方便的批量生成数据，让电脑跑一晚上，~~从而影响舍友睡眠~~
 * 这个Customized PBRT提供了几个额外的命令行参数，便于批量生成数据
   * `--my-sppm-photons-per-iter`
     * 可以覆盖场景文件，即 `xxx.pbrt` 中指定的SPPM的单次迭代光子数，便于命令行完全指定参数

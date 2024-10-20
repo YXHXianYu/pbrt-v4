@@ -3430,7 +3430,7 @@ void SPPMIntegrator::Render() {
                 RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
                 p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
                 // k_1是标准化参数（同论文），为了补正constants替换为kernel后，画面变暗。k_1的推导详见yxh的笔记
-                p.L = p.tau / ((iter + 1) * photonsPerIteration * Pi * Sqr(rNew));
+                p.L = p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
                 p.L += p.Ld / (iter + 1);  // 算上ray tracing时，每个点对光源采样的贡献 +
                                            // ray直接打到光源的贡献
             }

@@ -3451,8 +3451,14 @@ void SPPMIntegrator::Render() {
             { p.L_estimate[iter] = p.L; }
 
             {  // bias estimate
+               // 论文中的公式
                 p.bias = 0.5 * Sqr(rNew) * p.k_2 * p.L_2_derivative;
-                RGB tmp = p.L_2_derivative;
+                // 我们自己根据KDE的bias推导的新公式
+                p.bias = 0.5 * p.k_2 * p.L_2_derivative;
+
+                RGB tmp = 0.5 * 1.0 * p.k_2 * p.L_2_derivative;
+                for (uint32_t c = 0; c < 3; c++)
+                    tmp[c] = std::min(1.0f, p.bias[c]);
 
                 // p.bias = std::abs(p.bias);
                 p.bias_estimate[iter] = p.bias;
@@ -3479,14 +3485,17 @@ void SPPMIntegrator::Render() {
             }
             {  // mse estimate
                 for (uint32_t c = 0; c < 3; c++) {
-                    p.mse_estimate_sum[c] +=
-                        Sqr(p.bias_estimate[iter][c]) + p.variance[c];
+                    Float v = Sqr(p.bias_estimate[iter][c]) + p.variance[c];
+                    v = std::min(v, 0.5f);
+                    p.mse_estimate_sum[c] += v;
                 }
                 p.mse_estimate[iter] = p.mse_estimate_sum / (iter + 1);
             }
             {  // mse reference
                 for (uint32_t c = 0; c < 3; c++) {
-                    p.mse_reference_sum[c] += Sqr(p.L_estimate[iter][c] - p.reference[c]);
+                    Float v = Sqr(p.L_estimate[iter][c] - p.reference[c]);
+                    v = std::min(v, 0.5f);
+                    p.mse_reference_sum[c] += v;
                 }
                 p.mse_reference[iter] = p.mse_reference_sum / (iter + 1);
             }

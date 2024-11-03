@@ -3483,7 +3483,8 @@ void SPPMIntegrator::Render() {
                 // p.variance = std::abs(p.variance);
                 p.variance_estimate[iter] = p.variance;
             }
-            Float mse_limit = 0.5f;
+            // Float mse_limit = 0.5f;
+            Float mse_limit = 1e38f;
             {  // mse estimate
                 for (uint32_t c = 0; c < 3; c++) {
                     Float v = Sqr(p.bias_estimate[iter][c]) + p.variance[c];

@@ -13,3 +13,4 @@ test*.exr
 test*.txt
 .vscode/
 result_*/
+result/

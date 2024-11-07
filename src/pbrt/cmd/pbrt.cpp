@@ -309,8 +309,8 @@ int main(int argc, char *argv[]) {
         // injected by yxh
         if (Options->myIntegratorName != "") {
             scene.integrator.name = InternedString(&Options->myIntegratorName);
-            Warning("[YXH Extension] Overriding `Integrator` with %s",
-                    scene.integrator.name);
+            printf("[YXH Ext] Overriding `Integrator` with %s\n",
+                   scene.integrator.name.ToString().c_str());
         }
         bool need_update_maxdepth = Options->myMaxDepth.has_value();
         bool need_update_photonsperiteration = Options->mySppmPhotonsPerIter.has_value();
@@ -318,18 +318,18 @@ int main(int argc, char *argv[]) {
         for (ParsedParameter *p : scene.integrator.parameters.params) {
             if (need_update_maxdepth && p->name == "maxdepth") {
                 p->ints[0] = Options->myMaxDepth.value();
-                printf("[YXH Extension] Overriding `maxDepth` with %d\n", p->ints[0]);
+                printf("[YXH Ext] Overriding `maxDepth` with %d\n", p->ints[0]);
                 need_update_maxdepth = false;
             }
             if (need_update_photonsperiteration && p->name == "photonsperiteration") {
                 p->ints[0] = Options->mySppmPhotonsPerIter.value();
-                printf("[YXH Extension] Overriding `photonsPerIteration` with %d\n",
+                printf("[YXH Ext] Overriding `photonsPerIteration` with %d\n",
                        p->ints[0]);
                 need_update_photonsperiteration = false;
             }
             if (need_update_radius && p->name == "radius") {
                 p->floats[0] = Options->mySppmRadius.value();
-                printf("[YXH Extension] Overriding `radius` with %f\n", p->floats[0]);
+                printf("[YXH Ext] Overriding `radius` with %f\n", p->floats[0]);
                 need_update_radius = false;
             }
         }
@@ -339,6 +339,7 @@ int main(int argc, char *argv[]) {
             param->type = "integer";
             param->AddInt(Options->myMaxDepth.value());
             scene.integrator.parameters.params.push_back(param);
+            printf("[YXH Ext] Overriding `maxDepth` with %d\n", param->ints[0]);
         }
         if (need_update_photonsperiteration) {
             auto param = new ParsedParameter(FileLoc());
@@ -346,6 +347,8 @@ int main(int argc, char *argv[]) {
             param->type = "integer";
             param->AddInt(Options->mySppmPhotonsPerIter.value());
             scene.integrator.parameters.params.push_back(param);
+            printf("[YXH Ext] Overriding `photonsPerIteration` with %d\n",
+                   param->ints[0]);
         }
         if (need_update_radius) {
             auto param = new ParsedParameter(FileLoc());
@@ -353,6 +356,7 @@ int main(int argc, char *argv[]) {
             param->type = "float";
             param->AddFloat(Options->mySppmRadius.value());
             scene.integrator.parameters.params.push_back(param);
+            printf("[YXH Ext] Overriding `radius` with %f\n", param->floats[0]);
         }
 
         // check
@@ -361,7 +365,7 @@ int main(int argc, char *argv[]) {
             s += "[ " + p->ToString() + "] ";
         }
         s += "]";
-        printf("integrator.name: %s; params: %s\n",
+        printf("[YXH Ext] integrator.name: %s; params: %s\n",
                scene.integrator.name.ToString().c_str(), s.c_str());
 
         // Render the scene

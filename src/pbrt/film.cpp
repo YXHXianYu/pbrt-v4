@@ -70,11 +70,13 @@ FilmBaseParameters::FilmBaseParameters(const ParameterDictionary &parameters,
     filename = parameters.GetOneString("filename", "");
     if (!Options->imageFile.empty()) {
         if (!filename.empty())
-            Warning(loc,
-                    "Output filename supplied on command line, \"%s\" will "
-                    "override "
-                    "filename provided in scene description file, \"%s\".",
-                    Options->imageFile, filename);
+            // Warning(loc,
+            //         "Output filename supplied on command line, \"%s\" will "
+            //         "override "
+            //         "filename provided in scene description file, \"%s\".",
+            //         Options->imageFile, filename);
+            printf("Overriding output filename with \"%s\".\n",
+                   Options->imageFile.c_str());
         filename = Options->imageFile;
     } else if (filename.empty())
         filename = "pbrt.exr";

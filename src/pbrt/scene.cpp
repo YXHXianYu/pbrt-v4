@@ -760,6 +760,13 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
                   "The specified camera shutter times imply that the shutter "
                   "does not open.  A black image will result.");
 
+    if (film.name.ToString() == "gbuffer" && Options->myIntegratorName == "bdpt") {
+        std::string *let_it_free = new std::string("rgb");
+        film.name = InternedString(let_it_free);
+        Warning("[YXH Ext] GBuffer film is not compatible with BDPT integrator. "
+                "Automatically switching to RGB film!");
+    }
+
     this->film = Film::Create(film.name, film.parameters, exposureTime,
                               camera.cameraTransform, filt, &film.loc, alloc);
     LOG_VERBOSE("Finished creating filter and film");

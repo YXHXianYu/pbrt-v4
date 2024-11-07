@@ -2900,8 +2900,7 @@ void SPPMIntegrator::Render() {
     // => nPixels: 147456
 
     if (Options->isOnlyOutputLuminance) {
-        Warning(
-            "[YXH Extension] Output luminance only (usually for generating reference)");
+        Warning("[YXH Ext] Output luminance only (usually for generating reference)");
     }
 
     bool is_enabled_reference = false;
@@ -2913,17 +2912,16 @@ void SPPMIntegrator::Render() {
 
         if (!(referenceResolution.x == pixelBounds.Diagonal().x &&
               referenceResolution.y == pixelBounds.Diagonal().y)) {
-            Warning(
-                "[YXH Extension] Resolution of reference image is not matched with the "
-                "rendering image. (reference: %dx%d, rendering: %dx%d)",
-                referenceResolution.x, referenceResolution.y, pixelBounds.Diagonal().x,
-                pixelBounds.Diagonal().y);
+            Warning("[YXH Ext] Resolution of reference image is not matched with the "
+                    "rendering image. (reference: %dx%d, rendering: %dx%d)",
+                    referenceResolution.x, referenceResolution.y,
+                    pixelBounds.Diagonal().x, pixelBounds.Diagonal().y);
             CHECK(false);
 
         } else {
             is_enabled_reference = true;
-            Warning("[YXH Extension] Enabling reference image: %s", referenceImagePath);
-            Warning("[YXH Extension] This reference extension assurms that the first 3 "
+            Warning("[YXH Ext] Enabling reference image: %s", referenceImagePath);
+            Warning("[YXH Ext] This reference extension assurms that the first 3 "
                     "channels of an OpenEXR file is reference.rgb! So, if the reference "
                     "is completely black, please check the channel order.");
         }

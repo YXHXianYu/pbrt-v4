@@ -11,16 +11,22 @@ struct Data {
     num_of_pixels: u32
 }
 
-const INPUT_FILENAME: &str = "test_2024-11-02_10-45-41-spp16-ppi1e6-mse.max0.5f.exr";
+// const INPUT_FILENAME: &str = "test_2024-11-02_10-45-41-spp16-ppi1e6-mse.max0.5f.exr";
 // const INPUT_FILENAME: &str = "test_2024-11-03_22-14-11-spp16-ppi1e6-no.mse.max.exr";
-const OUTPUT_FOLDER_NAME: &str = "output";
+const INPUT_FILENAME: &str = "2024-11-07_16-51-20_zeroday-frame120_sppm_16-L.exr";
+const OUTPUT_FOLDER_NAME: &str = "./";
 const OUTPUT_FILE_WIDTH: u32 = 1024;
 const OUTPUT_FILE_HEIGHT: u32 = 768;
 const NUM_OF_POINTS: u32 = 100; // 该数值越大，绘制的图形越精细
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data = load_data(INPUT_FILENAME);
-    draw(&data)
+    if true {
+        draw(&data)
+    } else {
+        save_data(&data); // 提取出RGB通道并保存为新的exr文件
+        Ok(())
+    }
 }
 
 fn load_data(filepath: &str) -> Data {
@@ -70,6 +76,27 @@ fn load_data(filepath: &str) -> Data {
     Data{image: data, spp, num_of_pixels}
 }
 
+fn save_data(data: &Data) {
+    use exr::prelude::*;
+
+    let r = data.image["R"].values_as_f32().collect::<Vec<f32>>();
+    let g = data.image["G"].values_as_f32().collect::<Vec<f32>>();
+    let b = data.image["B"].values_as_f32().collect::<Vec<f32>>();
+
+    write_rgb_file(
+        "zeroday-frame120_bdpt_512.exr",
+        384,
+        384,
+        |x, y| {
+            (
+                r[(y * 384 + x) as usize],
+                g[(y * 384 + x) as usize],
+                b[(y * 384 + x) as usize]
+            )
+        }
+    ).unwrap();
+}
+
 fn get_content_in_2_char(name: &String, left_c: char, right_c: char) -> Option<u32> {
     if let Some(right) = name.split(left_c).nth(1) {
         if let Some(left) = right.split(right_c).nth(0) {
@@ -84,7 +111,12 @@ fn get_content_in_2_char(name: &String, left_c: char, right_c: char) -> Option<u
 }
 
 fn convert_channel_name(name: String) -> String {
-    name.split('-').nth(1).unwrap().to_string()
+    let v = name.split('-').nth(1);
+    if let Some(v) = v {
+        v.to_string()
+    } else {
+        name
+    }
 }
 
 fn draw(data: &Data) -> Result<(), Box<dyn std::error::Error>> {
@@ -92,17 +124,18 @@ fn draw(data: &Data) -> Result<(), Box<dyn std::error::Error>> {
     let width = OUTPUT_FILE_WIDTH;
     let height = OUTPUT_FILE_HEIGHT;
 
-    let range_x = -0.01f32..0.5f32;
+    let range_x = -0.01f32..0.2f32;
     let range_y = 0.0f32..1.0f32;
 
-    for color in ["R"].iter() {
-        for idx in ["000", "001", format!("{:03}", data.spp - 1).as_str()].iter() {
+    for color in ["R", "G", "B"].iter() {
+        for idx in [format!("{:03}", data.spp - 1).as_str()].iter() {
 
-            let title = format!("MSE-MSERef-[{}].{}", idx, color);
+            let title = format!("MSE-MSERef[{}].{}", idx, color);
+            let filename = format!("{}-MSE-MSERef[{}].{}", INPUT_FILENAME, idx, color);
             let mse = format!("MSE[{}].{}", idx, color);
             let mseref = format!("MSERef[{}].{}", idx, color);
 
-            draw_multi_channels_distribution(data, title.as_str(), Vec::from([
+            draw_multi_channels_distribution(data, title.as_str(), filename.as_str(), Vec::from([
                 (mse.as_str(), RED),
                 (mseref.as_str(), GREEN),
             ]), width, height, range_x.clone(), range_y.clone())?;
@@ -113,16 +146,15 @@ fn draw(data: &Data) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[allow(non_snake_case)]
-fn draw_multi_channels_distribution(data: &Data, title: &str, channels: Vec<(&str, RGBColor)>, width: u32, height: u32, range_x: Range<f32>, range_y: Range<f32>) -> Result<(), Box<dyn std::error::Error>> {
+fn draw_multi_channels_distribution(data: &Data, title: &str, filename: &str, channels: Vec<(&str, RGBColor)>, width: u32, height: u32, range_x: Range<f32>, range_y: Range<f32>) -> Result<(), Box<dyn std::error::Error>> {
 
-    if title.contains("/") {
-        panic!("Title cannot contain '/'");
+    if filename.contains("/") {
+        panic!("Filename cannot contain '/'");
     }
     for (channel_name, _) in channels.iter() {
         assert!(data.image.contains_key(*channel_name));
     }
 
-    let filename = format!("{} - distribution", title);
     let pathname = format!("{}/{}.png", OUTPUT_FOLDER_NAME, filename);
 
     // println!("Start drawing {}", pathname);
@@ -131,7 +163,7 @@ fn draw_multi_channels_distribution(data: &Data, title: &str, channels: Vec<(&st
     root.fill(&WHITE)?;
 
     let mut chart = ChartBuilder::on(&root)
-        .caption(filename.as_str(), ("sans-serif", 50).into_font())
+        .caption(title, ("sans-serif", 50).into_font())
         .margin(5)
         .x_label_area_size(30)
         .y_label_area_size(30)

@@ -14,70 +14,110 @@ def execute(cmd):
     duration = end_time - start_time
     print(f"[DataMaker] 命令执行成功, 耗时: {duration}")
 
-# 获取时间戳并生成文件名
+MAX_DEPTH = 7
+SPPM_PHOTONS_PER_ITER = 221184 # 1.5 x pixels
+OUTPUT_FILE_PATH = "result/"
 
-timestamp = get_timestamp_filename()
-filename_ref = f"test_{timestamp}_bathroom_reference.exr"
-execute([
-    r".\build\Debug\pbrt.exe",
-    r".\scene\contemporary-bathroom\contemporary-bathroom-test.pbrt",
-    "--spp", "5",
-    "--my-sppm-photons-per-iter", "1000000",
-    "--only-output-luminance",
-    "--outfile", filename_ref
-])
+# tip: how to use reference, e.g. "--my-reference-path", filename_ref,
 
-timestamp = get_timestamp_filename()
-filename_mse = f"test_{timestamp}_bathroom_mse.exr"
-subprocess.run([
-    r".\build\Debug\pbrt.exe",
-    r".\scene\contemporary-bathroom\contemporary-bathroom-test.pbrt",
-    "--spp", "4",
-    "--my-sppm-photons-per-iter", "100000",
-    "--my-reference-path", filename_ref,
-    "--outfile", filename_mse
-])
+def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02):
 
-timestamp = get_timestamp_filename()
-filename_ref = f"test_{timestamp}_pbrt-book_reference.exr"
-execute([
-    r".\build\Debug\pbrt.exe",
-    r".\scene\pbrt-book\book-test.pbrt",
-    "--spp", "5",
-    "--my-sppm-photons-per-iter", "1000000",
-    "--only-output-luminance",
-    "--outfile", filename_ref
-])
+    spp = 512
+    timestamp = get_timestamp_filename()
+    filename_ref = f"{timestamp}_{scene_name}_bdpt_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "bdpt",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--outfile", OUTPUT_FILE_PATH + filename_ref,
+    ])
 
-timestamp = get_timestamp_filename()
-filename_mse = f"test_{timestamp}_pbrt-book_mse.exr"
-subprocess.run([
-    r".\build\Debug\pbrt.exe",
-    r".\scene\pbrt-book\book-test.pbrt",
-    "--spp", "4",
-    "--my-sppm-photons-per-iter", "100000",
-    "--my-reference-path", filename_ref,
-    "--outfile", filename_mse
-])
+    spp = 4
+    timestamp = get_timestamp_filename()
+    filename_pt = f"{timestamp}_{scene_name}_pt_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "path",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--outfile", OUTPUT_FILE_PATH + filename_pt,
+    ])
 
-timestamp = get_timestamp_filename()
-filename_ref = f"test_{timestamp}_bmw-m6_reference.exr"
-execute([
-    r".\build\Debug\pbrt.exe",
-    r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-sppm.pbrt",
-    "--spp", "5",
-    "--my-sppm-photons-per-iter", "1000000",
-    "--only-output-luminance",
-    "--outfile", filename_ref
-])
+    spp = 16
+    timestamp = get_timestamp_filename()
+    filename_pt = f"{timestamp}_{scene_name}_pt_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "path",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--outfile", OUTPUT_FILE_PATH + filename_pt,
+    ])
 
-timestamp = get_timestamp_filename()
-filename_mse = f"test_{timestamp}_bmw-m6_mse.exr"
-subprocess.run([
-    r".\build\Debug\pbrt.exe",
-    r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-sppm.pbrt",
-    "--spp", "4",
-    "--my-sppm-photons-per-iter", "100000",
-    "--my-reference-path", filename_ref,
-    "--outfile", filename_mse
-])
+    spp = 64
+    timestamp = get_timestamp_filename()
+    filename_pt = f"{timestamp}_{scene_name}_pt_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "path",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--outfile", OUTPUT_FILE_PATH + filename_pt,
+    ])
+
+    spp = 4
+    timestamp = get_timestamp_filename()
+    filename_sppm = f"{timestamp}_{scene_name}_sppm_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "sppm",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--my-sppm-photons-per-iter", str(SPPM_PHOTONS_PER_ITER),
+        "--my-sppm-radius", str(sppm_radius),
+        "--outfile", OUTPUT_FILE_PATH + filename_sppm,
+        "--sppm-simplify-output",
+    ])
+
+    spp = 16
+    timestamp = get_timestamp_filename()
+    filename_sppm = f"{timestamp}_{scene_name}_sppm_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "sppm",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--my-sppm-photons-per-iter", str(SPPM_PHOTONS_PER_ITER),
+        "--my-sppm-radius", str(sppm_radius),
+        "--outfile", OUTPUT_FILE_PATH + filename_sppm,
+        "--sppm-simplify-output",
+    ])
+
+    spp = 64
+    timestamp = get_timestamp_filename()
+    filename_sppm = f"{timestamp}_{scene_name}_sppm_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "sppm",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--my-sppm-photons-per-iter", str(SPPM_PHOTONS_PER_ITER),
+        "--my-sppm-radius", str(sppm_radius),
+        "--outfile", OUTPUT_FILE_PATH + filename_sppm,
+        "--sppm-simplify-output",
+    ])
+
+generate_data_using_a_scene("bathroom", r".\scene\contemporary-bathroom\contemporary-bathroom-common.pbrt", sppm_radius=0.02)
+generate_data_using_a_scene("book", r".\scene\pbrt-book\book-common.pbrt", sppm_radius=0.1)
+generate_data_using_a_scene("bmw", r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-common.pbrt", sppm_radius=0.1)
+generate_data_using_a_scene("zeroday-frame120", r"..\pbrt-v4-scenes-master\zero-day\frame120-common.pbrt")
+generate_data_using_a_scene("watercolor-camera1", r"..\pbrt-v4-scenes-master\watercolor\camera-1-common.pbrt")
+generate_data_using_a_scene("bistro-vespa", r"..\pbrt-v4-scenes-master\bistro\bistro_vespa-common.pbrt")

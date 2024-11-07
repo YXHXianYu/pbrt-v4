@@ -161,13 +161,30 @@ int main(int argc, char *argv[]) {
             ParseArg(&iter, args.end(), "gpu", &options.useGPU, onError) ||
             ParseArg(&iter, args.end(), "gpu-device", &options.gpuDevice, onError) ||
 #endif
-            // yxh
+            /**
+             * injected by yxh
+             *
+             * std::string myIntegratorName;
+             * std::string myReferenceImagePath;
+             * pstd::optional<int> myMaxDepth;
+             * pstd::optional<int> mySppmPhotonsPerIter;
+             * pstd::optional<float> mySppmRadius;
+             * bool isOnlyOutputLuminance = false;
+             */
+            ParseArg(&iter, args.end(), "my-integrator", &options.myIntegratorName,
+                     onError) ||
             ParseArg(&iter, args.end(), "my-reference-path",
                      &options.myReferenceImagePath, onError) ||
+            ParseArg(&iter, args.end(), "my-max-depth", &options.myMaxDepth, onError) ||
             ParseArg(&iter, args.end(), "my-sppm-photons-per-iter",
                      &options.mySppmPhotonsPerIter, onError) ||
+            ParseArg(&iter, args.end(), "my-sppm-radius", &options.mySppmRadius,
+                     onError) ||
             ParseArg(&iter, args.end(), "only-output-luminance",
                      &options.isOnlyOutputLuminance, onError) ||
+            ParseArg(&iter, args.end(), "sppm-simplify-output",
+                     &options.isSppmSimplifyOutput, onError) ||
+
             // pbrt
             ParseArg(&iter, args.end(), "debugstart", &options.debugStart, onError) ||
             ParseArg(&iter, args.end(), "disable-image-textures",
@@ -288,6 +305,64 @@ int main(int argc, char *argv[]) {
         BasicScene scene;
         BasicSceneBuilder builder(&scene);
         ParseFiles(&builder, filenames);
+
+        // injected by yxh
+        if (Options->myIntegratorName != "") {
+            scene.integrator.name = InternedString(&Options->myIntegratorName);
+            Warning("[YXH Extension] Overriding `Integrator` with %s",
+                    scene.integrator.name);
+        }
+        bool need_update_maxdepth = Options->myMaxDepth.has_value();
+        bool need_update_photonsperiteration = Options->mySppmPhotonsPerIter.has_value();
+        bool need_update_radius = Options->mySppmRadius.has_value();
+        for (ParsedParameter *p : scene.integrator.parameters.params) {
+            if (need_update_maxdepth && p->name == "maxdepth") {
+                p->ints[0] = Options->myMaxDepth.value();
+                printf("[YXH Extension] Overriding `maxDepth` with %d\n", p->ints[0]);
+                need_update_maxdepth = false;
+            }
+            if (need_update_photonsperiteration && p->name == "photonsperiteration") {
+                p->ints[0] = Options->mySppmPhotonsPerIter.value();
+                printf("[YXH Extension] Overriding `photonsPerIteration` with %d\n",
+                       p->ints[0]);
+                need_update_photonsperiteration = false;
+            }
+            if (need_update_radius && p->name == "radius") {
+                p->floats[0] = Options->mySppmRadius.value();
+                printf("[YXH Extension] Overriding `radius` with %f\n", p->floats[0]);
+                need_update_radius = false;
+            }
+        }
+        if (need_update_maxdepth) {
+            auto param = new ParsedParameter(FileLoc());
+            param->name = "maxdepth";
+            param->type = "integer";
+            param->AddInt(Options->myMaxDepth.value());
+            scene.integrator.parameters.params.push_back(param);
+        }
+        if (need_update_photonsperiteration) {
+            auto param = new ParsedParameter(FileLoc());
+            param->name = "photonsperiteration";
+            param->type = "integer";
+            param->AddInt(Options->mySppmPhotonsPerIter.value());
+            scene.integrator.parameters.params.push_back(param);
+        }
+        if (need_update_radius) {
+            auto param = new ParsedParameter(FileLoc());
+            param->name = "radius";
+            param->type = "float";
+            param->AddFloat(Options->mySppmRadius.value());
+            scene.integrator.parameters.params.push_back(param);
+        }
+
+        // check
+        std::string s = "[ ParameterDictionary params: ";
+        for (ParsedParameter *p : scene.integrator.parameters.params) {
+            s += "[ " + p->ToString() + "] ";
+        }
+        s += "]";
+        printf("integrator.name: %s; params: %s\n",
+               scene.integrator.name.ToString().c_str(), s.c_str());
 
         // Render the scene
         if (Options->useGPU || Options->wavefront)

@@ -2795,7 +2795,8 @@ const bool k_is_progress_quiet = false;
 struct SPPMPixel {
     // SPPMPixel Public Members
     Float radius = 0;
-    RGB Ld;
+    RGB Ld_iter;
+    RGB Ld_sum;
 
     struct VisiblePoint {
         // VisiblePoint Public Methods
@@ -2846,10 +2847,9 @@ struct SPPMPixel {
     std::vector<RGB> bias_estimate;
     std::vector<RGB> variance_estimate;
     std::vector<RGB> L_estimate;
+    std::vector<RGB> Ld_estimate;
     std::vector<RGB> mse_estimate;
     std::vector<RGB> mse_reference;
-
-    std::vector<RGB> temp_vec;  // used to temp or debug
 
     RGB reference;
 
@@ -2904,23 +2904,29 @@ void SPPMIntegrator::Render() {
             "[YXH Extension] Output luminance only (usually for generating reference)");
     }
 
-    std::string referenceImagePath =
-        "bathroom-reference-resolution384x384-sppm-kervel.v2-spp256-ppi8e6.exr";
+    bool is_enabled_reference = false;
+    pbrt::ImageAndMetadata referenceImage;
     if (Options->myReferenceImagePath != "") {
-        referenceImagePath = Options->myReferenceImagePath;
-        Warning("[YXH Extension] Using specific reference image from command line: %s",
-                referenceImagePath);
-    }
-    auto referenceImage = pbrt::Image::Read(referenceImagePath);
-    auto referenceResolution = referenceImage.image.Resolution();
-    bool is_enabled_reference = (referenceResolution.x == pixelBounds.Diagonal().x &&
-                                 referenceResolution.y == pixelBounds.Diagonal().y);
-    if (!is_enabled_reference) {
-        Warning("[YXH Extension] Resolution of reference image is not matched with the "
-                "rendering image. The results of Reference/MseRef/etc will be undefined. "
-                "(reference: %dx%d, rendering: %dx%d)",
+        std::string referenceImagePath = Options->myReferenceImagePath;
+        referenceImage = pbrt::Image::Read(referenceImagePath);
+        auto referenceResolution = referenceImage.image.Resolution();
+
+        if (!(referenceResolution.x == pixelBounds.Diagonal().x &&
+              referenceResolution.y == pixelBounds.Diagonal().y)) {
+            Warning(
+                "[YXH Extension] Resolution of reference image is not matched with the "
+                "rendering image. (reference: %dx%d, rendering: %dx%d)",
                 referenceResolution.x, referenceResolution.y, pixelBounds.Diagonal().x,
                 pixelBounds.Diagonal().y);
+            CHECK(false);
+
+        } else {
+            is_enabled_reference = true;
+            Warning("[YXH Extension] Enabling reference image: %s", referenceImagePath);
+            Warning("[YXH Extension] This reference extension assurms that the first 3 "
+                    "channels of an OpenEXR file is reference.rgb! So, if the reference "
+                    "is completely black, please check the channel order.");
+        }
     }
 
     // Initialize _pixels_ array for SPPM
@@ -2949,10 +2955,9 @@ void SPPMIntegrator::Render() {
             p.bias_estimate.resize(nIterations);
             p.variance_estimate.resize(nIterations);
             p.L_estimate.resize(nIterations);
+            p.Ld_estimate.resize(nIterations);
             p.mse_estimate.resize(nIterations);
             p.mse_reference.resize(nIterations);
-
-            p.temp_vec.resize(nIterations);
         }
     }
 
@@ -3056,7 +3061,7 @@ void SPPMIntegrator::Render() {
                             }
                         }
 
-                        pixel.Ld += film.ToOutputRGB(L, lambda);
+                        pixel.Ld_iter += film.ToOutputRGB(L, lambda);
                         break;
                     }
 
@@ -3090,7 +3095,7 @@ void SPPMIntegrator::Render() {
                         }
                     }
 
-                    pixel.Ld += film.ToOutputRGB(L, lambda);
+                    pixel.Ld_iter += film.ToOutputRGB(L, lambda);
 
                     // Terminate path at maximum depth or if visible point has been set
                     if (depth++ == maxDepth || haveSetVisiblePoint)
@@ -3100,7 +3105,7 @@ void SPPMIntegrator::Render() {
                     SampledSpectrum Ld =
                         SampleLd(isect, bsdf, lambda, sampler, &lightSampler);
                     if (Ld)
-                        pixel.Ld += film.ToOutputRGB(beta * Ld, lambda);
+                        pixel.Ld_iter += film.ToOutputRGB(beta * Ld, lambda);
 
                     // Possibly create visible point and end camera path
                     BxDFFlags flags = bsdf.Flags();
@@ -3403,53 +3408,52 @@ void SPPMIntegrator::Render() {
         ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
             SPPMPixel &p = pixels[pPixel];
 
-            auto reset_visible_point = [&]() {
-                // Reset _VisiblePoint_ in pixel
-                p.vp.beta = SampledSpectrum(0.);
-                p.vp.bsdf = BSDF();
-            };
-
             int m = p.m.load(std::memory_order_relaxed);
 
-            p.L = p.Ld / (iter + 1);  // 算上ray tracing时，每个点对光源采样的贡献 +
-                                      // ray直接打到光源的贡献
-            for (uint32_t c = 0; c < 3; c++)
-                if (p.L[c] < 0)
-                    p.L[c] = 0;
+            p.Ld_sum += p.Ld_iter;
+            p.L = RGB();
+            p.L_2_derivative = RGB();
 
             // Kernel-based PPM
-            if (m == 0 && p.n == 0) {
-                reset_visible_point();
-                return;
+            if (m > 0 || p.n > 0) {
+                effective_photon_count += m;
+
+                // Compute new photon count and search radius given photons
+                Float gamma = (Float)2 / (Float)3;  // the $alpha$ in paper
+                Float nNew = p.n + gamma * m;
+                Float rNew = p.radius * std::sqrt(nNew / (p.n + m));
+                CHECK(p.n + m > 0);
+
+                // Update $\tau$ for pixel
+                {  // 0th derivative
+                    RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
+                    p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
+                    // k_1是标准化参数（同论文），为了补正constants替换为kernel后，画面变暗。k_1的推导详见yxh的笔记
+                    p.L += p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
+                }
+                {  // 2nd derivative
+                    RGB Phi_i_2_derivative(p.Phi_i_2_derivative[0],
+                                           p.Phi_i_2_derivative[1],
+                                           p.Phi_i_2_derivative[2]);
+                    p.tau_2_derivative = (p.tau_2_derivative + Phi_i_2_derivative) *
+                                         Sqr(rNew) / Sqr(p.radius);
+                    p.L_2_derivative =
+                        p.tau_2_derivative /
+                        ((iter + 1) * photonsPerIteration * Pi * Sqr(rNew));
+                }
+
+                p.n = nNew;
+                p.radius = rNew;
             }
 
-            effective_photon_count += m;
-
-            // Compute new photon count and search radius given photons
-            Float gamma = (Float)2 / (Float)3;  // the $alpha$ in paper
-            Float nNew = p.n + gamma * m;
-            Float rNew = p.radius * std::sqrt(nNew / (p.n + m));
-            CHECK(p.n + m > 0);
-
-            // Update $\tau$ for pixel
-            {  // 0th derivative
-                RGB Phi_i(p.Phi_i[0], p.Phi_i[1], p.Phi_i[2]);
-                p.tau = (p.tau + Phi_i) * Sqr(rNew) / Sqr(p.radius);
-                // k_1是标准化参数（同论文），为了补正constants替换为kernel后，画面变暗。k_1的推导详见yxh的笔记
-                p.L += p.tau / ((iter + 1) * photonsPerIteration * p.k_1 * Sqr(rNew));
+            {
+                // 直接光照(单次iteration)
+                p.Ld_estimate[iter] = p.Ld_iter;
             }
-            {  // 2nd derivative
-                RGB Phi_i_2_derivative(p.Phi_i_2_derivative[0], p.Phi_i_2_derivative[1],
-                                       p.Phi_i_2_derivative[2]);
-                p.tau_2_derivative =
-                    (p.tau_2_derivative + Phi_i_2_derivative) * Sqr(rNew) / Sqr(p.radius);
-                p.L_2_derivative = p.tau_2_derivative /
-                                   ((iter + 1) * photonsPerIteration * Pi * Sqr(rNew));
+            {
+                // 间接光照
+                p.L_estimate[iter] = p.L;
             }
-
-            // Update L history
-            { p.L_estimate[iter] = p.L; }
-
             {  // bias estimate
                 // 论文中的公式
                 // p.bias = 0.5 * Sqr(rNew) * p.k_2 * p.L_2_derivative;
@@ -3462,56 +3466,76 @@ void SPPMIntegrator::Render() {
 
                 // p.bias = std::abs(p.bias);
                 p.bias_estimate[iter] = p.bias;
-                p.temp_vec[iter] = tmp;
             }
-            {  // variance estimate
+            {
+                // for variance estimate
                 p.x_j[iter] = p.L - p.bias;
-                for (uint32_t channel = 0; channel < 3; channel++) {
-                    Float tmp1 = 0.0;  // sigma (x_j)^2
-                    Float tmp2 = 0.0;  // (sigma x_j)
-                    Float tmp3 = 0.0;  // (sigma x_j)^2 / i
-                    for (int j = 0; j <= iter; ++j) {
-                        tmp1 += p.x_j[j][channel] * p.x_j[j][channel];
-                        tmp2 += p.x_j[j][channel];
+            }
+
+            if (!Options->isSppmSimplifyOutput || iter == nIterations - 1) {
+                {  // variance estimate
+                    // 间接光
+                    for (uint32_t channel = 0; channel < 3; channel++) {
+                        Float tmp1 = 0.0;  // sigma (x_j)^2
+                        Float tmp2 = 0.0;  // (sigma x_j)
+                        Float tmp3 = 0.0;  // (sigma x_j)^2 / i
+                        for (int j = 0; j <= iter; ++j) {
+                            tmp1 += p.x_j[j][channel] * p.x_j[j][channel];
+                            tmp2 += p.x_j[j][channel];
+                        }
+                        tmp3 = tmp2 * tmp2 / (iter + 1.0);
+                        if (iter >= 1)
+                            p.variance[channel] = (tmp1 - tmp3) / iter;  // Equation (22)
+                        else
+                            p.variance[channel] = 0.0;
                     }
-                    tmp3 = tmp2 * tmp2 / (iter + 1.0);
-                    if (iter >= 1)
-                        p.variance[channel] = (tmp1 - tmp3) / iter;  // Equation (22)
-                    else
-                        p.variance[channel] = 0.0;
+                    // 直接光
+                    for (uint32_t channel = 0; channel < 3; channel++) {
+                        Float mean = p.Ld_sum[channel] / (iter + 1);
+                        Float sum = 0.0f;
+                        for (int j = 0; j <= iter; ++j) {
+                            Float tmp = p.Ld_estimate[j][channel] - mean;
+                            sum += tmp * tmp;
+                        }
+                        if (iter == 0)
+                            p.variance[channel] += 0.0f;
+                        else
+                            p.variance[channel] += sum / iter;
+                    }
+                    // sum
+                    p.variance_estimate[iter] = p.variance;
+                    // Float mse_limit = 0.5f;
+                    Float mse_limit = 1e38f;
+                    {  // mse estimate
+                        for (uint32_t c = 0; c < 3; c++) {
+                            Float v = Sqr(p.bias_estimate[iter][c]) + p.variance[c];
+                            v = std::min(v, mse_limit);
+                            p.mse_estimate_sum[c] += v;
+                        }
+                        p.mse_estimate[iter] = p.mse_estimate_sum / (iter + 1);
+                    }
+                    {  // mse reference
+                        for (uint32_t c = 0; c < 3; c++) {
+                            Float v = Sqr(p.L_estimate[iter][c] - p.reference[c]);
+                            v = std::min(v, mse_limit);
+                            p.mse_reference_sum[c] += v;
+                        }
+                        p.mse_reference[iter] = p.mse_reference_sum / (iter + 1);
+                    }
                 }
-                // p.variance = std::abs(p.variance);
-                p.variance_estimate[iter] = p.variance;
-            }
-            // Float mse_limit = 0.5f;
-            Float mse_limit = 1e38f;
-            {  // mse estimate
-                for (uint32_t c = 0; c < 3; c++) {
-                    Float v = Sqr(p.bias_estimate[iter][c]) + p.variance[c];
-                    v = std::min(v, mse_limit);
-                    p.mse_estimate_sum[c] += v;
-                }
-                p.mse_estimate[iter] = p.mse_estimate_sum / (iter + 1);
-            }
-            {  // mse reference
-                for (uint32_t c = 0; c < 3; c++) {
-                    Float v = Sqr(p.L_estimate[iter][c] - p.reference[c]);
-                    v = std::min(v, mse_limit);
-                    p.mse_reference_sum[c] += v;
-                }
-                p.mse_reference[iter] = p.mse_reference_sum / (iter + 1);
             }
 
             // Set remaining pixel values for next photon pass
-            p.n = nNew;
-            p.radius = rNew;
+            p.Ld_iter = RGB();
             p.m = 0;
             for (int i = 0; i < 3; ++i)
                 p.Phi_i[i] = (Float)0;
             for (int i = 0; i < 3; ++i)
                 p.Phi_i_2_derivative[i] = (Float)0;
 
-            reset_visible_point();
+            // Reset _VisiblePoint_ in pixel
+            p.vp.beta = SampledSpectrum(0.);
+            p.vp.bsdf = BSDF();
         });
 
         effective_photon_count /= nPixels;
@@ -3532,6 +3556,11 @@ void SPPMIntegrator::Render() {
 
         // MARK: * SPPM Output
         // Periodically write SPPM image to disk
+
+        uint32_t startIter = 0;
+        if (Options->isSppmSimplifyOutput) {
+            startIter = nIterations - 1;
+        }
         if (iter + 1 == nIterations || (iter + 1 <= 64 && IsPowerOf2(iter + 1)) ||
             ((iter + 1) % 64 == 0)) {
             if (Options->isOnlyOutputLuminance) {
@@ -3550,8 +3579,7 @@ void SPPMIntegrator::Render() {
                     // Compute radiance _L_ for SPPM pixel _pPixel_
                     const SPPMPixel &pixel = pixels[pPixel];
 
-                    // RGB L = pixel.Ld / (iter + 1) + pixel.L;
-                    RGB L = pixel.L;  // direct illumination is already included in L
+                    RGB L = pixel.L + pixel.Ld_sum / (iter + 1);
 
                     uint32_t id = 0;
 
@@ -3571,58 +3599,66 @@ void SPPMIntegrator::Render() {
 
                 save_image(rgbImage);
             } else {
-                std::vector<std::string> channels = {"A1-L.R",
-                                                     "A1-L.G",
-                                                     "A1-L.B",
-                                                     "C1-Position.R",
-                                                     "C1-Position.G",
-                                                     "C1-Position.B",
-                                                     "C2-Normal.R",
-                                                     "C2-Normal.G",
-                                                     "C2-Normal.B",
-                                                     "C3-Albedo.R",
-                                                     "C3-Albedo.G",
-                                                     "C3-Albedo.B",
-                                                     "A2-Bias.R",
-                                                     "A2-Bias.G",
-                                                     "A2-Bias.B",
-                                                     "A3-Variance.R",
-                                                     "A3-Variance.G",
-                                                     "A3-Variance.B",
-                                                     "A4-ReferenceImage.R",
-                                                     "A4-ReferenceImage.G",
-                                                     "A4-ReferenceImage.B"};
+                std::vector<std::string> channels = {
+                    "A1-L.R",
+                    "A1-L.G",
+                    "A1-L.B",
+                    //  "C1-Position.R",
+                    //  "C1-Position.G",
+                    //  "C1-Position.B",
+                    //  "C2-Normal.R",
+                    //  "C2-Normal.G",
+                    //  "C2-Normal.B",
+                    //  "C3-Albedo.R",
+                    //  "C3-Albedo.G",
+                    //  "C3-Albedo.B",
+                    "A2-Bias.R",
+                    "A2-Bias.G",
+                    "A2-Bias.B",
+                    "A3-Variance.R",
+                    "A3-Variance.G",
+                    "A3-Variance.B",
+                };
 
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                if (is_enabled_reference) {
+                    channels.push_back("A4-ReferenceImage.R");
+                    channels.push_back("A4-ReferenceImage.G");
+                    channels.push_back("A4-ReferenceImage.B");
+                }
+
+                for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                     channels.push_back(StringPrintf("B1-L[%03d].R", i));
                     channels.push_back(StringPrintf("B1-L[%03d].G", i));
                     channels.push_back(StringPrintf("B1-L[%03d].B", i));
                 }
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                     channels.push_back(StringPrintf("B2-Bias[%03d].R", i));
                     channels.push_back(StringPrintf("B2-Bias[%03d].G", i));
                     channels.push_back(StringPrintf("B2-Bias[%03d].B", i));
                 }
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                     channels.push_back(StringPrintf("B4-Variance[%03d].R", i));
                     channels.push_back(StringPrintf("B4-Variance[%03d].G", i));
                     channels.push_back(StringPrintf("B4-Variance[%03d].B", i));
                 }
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                     channels.push_back(StringPrintf("B5-MSE[%03d].R", i));
                     channels.push_back(StringPrintf("B5-MSE[%03d].G", i));
                     channels.push_back(StringPrintf("B5-MSE[%03d].B", i));
                 }
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    channels.push_back(StringPrintf("B6-MSERef[%03d].R", i));
-                    channels.push_back(StringPrintf("B6-MSERef[%03d].G", i));
-                    channels.push_back(StringPrintf("B6-MSERef[%03d].B", i));
+                if (is_enabled_reference) {
+                    for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
+                        channels.push_back(StringPrintf("B6-MSERef[%03d].R", i));
+                        channels.push_back(StringPrintf("B6-MSERef[%03d].G", i));
+                        channels.push_back(StringPrintf("B6-MSERef[%03d].B", i));
+                    }
                 }
-                for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                    channels.push_back(StringPrintf("B7-Tmp[%03d].R", i));
-                    channels.push_back(StringPrintf("B7-Tmp[%03d].G", i));
-                    channels.push_back(StringPrintf("B7-Tmp[%03d].B", i));
-                }
+
+                // for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
+                //     channels.push_back(StringPrintf("B7-Tmp[%03d].R", i));
+                //     channels.push_back(StringPrintf("B7-Tmp[%03d].G", i));
+                //     channels.push_back(StringPrintf("B7-Tmp[%03d].B", i));
+                // }
 
                 Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
                                channels);
@@ -3631,8 +3667,7 @@ void SPPMIntegrator::Render() {
                     // Compute radiance _L_ for SPPM pixel _pPixel_
                     const SPPMPixel &pixel = pixels[pPixel];
 
-                    // RGB L = pixel.Ld / (iter + 1) + pixel.L;
-                    RGB L = pixel.L;  // For consistency of L, ref, mse
+                    RGB L = pixel.L + pixel.Ld_sum / (iter + 1);
 
                     uint32_t id = 0;
 
@@ -3643,21 +3678,21 @@ void SPPMIntegrator::Render() {
                     rgbImage.SetChannel(pImage, id++, L.r);
                     rgbImage.SetChannel(pImage, id++, L.g);
                     rgbImage.SetChannel(pImage, id++, L.b);
-                    // Position
-                    // rgbImage.SetChannel(pImage, id++, pixel.vp.p.x);
-                    // rgbImage.SetChannel(pImage, id++, pixel.vp.p.y);
-                    // rgbImage.SetChannel(pImage, id++, pixel.vp.p.z);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.position.x);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.position.y);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.position.z);
-                    // Normal
-                    rgbImage.SetChannel(pImage, id++, pixel.info.normal.x);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.normal.y);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.normal.z);
-                    // Albedo
-                    rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.r);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.g);
-                    rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.b);
+                    // // Position
+                    // // rgbImage.SetChannel(pImage, id++, pixel.vp.p.x);
+                    // // rgbImage.SetChannel(pImage, id++, pixel.vp.p.y);
+                    // // rgbImage.SetChannel(pImage, id++, pixel.vp.p.z);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.position.x);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.position.y);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.position.z);
+                    // // Normal
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.normal.x);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.normal.y);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.normal.z);
+                    // // Albedo
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.r);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.g);
+                    // rgbImage.SetChannel(pImage, id++, pixel.info.albedoRGB.b);
                     // Bias
                     rgbImage.SetChannel(pImage, id++, pixel.bias.r);
                     rgbImage.SetChannel(pImage, id++, pixel.bias.g);
@@ -3666,46 +3701,45 @@ void SPPMIntegrator::Render() {
                     rgbImage.SetChannel(pImage, id++, pixel.variance.r);
                     rgbImage.SetChannel(pImage, id++, pixel.variance.g);
                     rgbImage.SetChannel(pImage, id++, pixel.variance.b);
-                    // reference
-                    rgbImage.SetChannel(pImage, id++, pixel.reference.r);
-                    rgbImage.SetChannel(pImage, id++, pixel.reference.g);
-                    rgbImage.SetChannel(pImage, id++, pixel.reference.b);
+
+                    if (is_enabled_reference) {
+                        // reference
+                        rgbImage.SetChannel(pImage, id++, pixel.reference.r);
+                        rgbImage.SetChannel(pImage, id++, pixel.reference.g);
+                        rgbImage.SetChannel(pImage, id++, pixel.reference.b);
+                    }
 
                     // L
-                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                    for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                         rgbImage.SetChannel(pImage, id++, pixel.L_estimate[i].r);
                         rgbImage.SetChannel(pImage, id++, pixel.L_estimate[i].g);
                         rgbImage.SetChannel(pImage, id++, pixel.L_estimate[i].b);
                     }
                     // bias
-                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                    for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                         rgbImage.SetChannel(pImage, id++, pixel.bias_estimate[i].r);
                         rgbImage.SetChannel(pImage, id++, pixel.bias_estimate[i].g);
                         rgbImage.SetChannel(pImage, id++, pixel.bias_estimate[i].b);
                     }
                     // variance
-                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                    for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                         rgbImage.SetChannel(pImage, id++, pixel.variance_estimate[i].r);
                         rgbImage.SetChannel(pImage, id++, pixel.variance_estimate[i].g);
                         rgbImage.SetChannel(pImage, id++, pixel.variance_estimate[i].b);
                     }
-                    // mse ref
-                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
+                    // mse estimate
+                    for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
                         rgbImage.SetChannel(pImage, id++, pixel.mse_estimate[i].r);
                         rgbImage.SetChannel(pImage, id++, pixel.mse_estimate[i].g);
                         rgbImage.SetChannel(pImage, id++, pixel.mse_estimate[i].b);
                     }
-                    // mse ref
-                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                        rgbImage.SetChannel(pImage, id++, pixel.mse_reference[i].r);
-                        rgbImage.SetChannel(pImage, id++, pixel.mse_reference[i].g);
-                        rgbImage.SetChannel(pImage, id++, pixel.mse_reference[i].b);
-                    }
-                    // tmp (D)
-                    for (uint32_t i = 0; i < (uint32_t)nIterations; ++i) {
-                        rgbImage.SetChannel(pImage, id++, pixel.temp_vec[i].r);
-                        rgbImage.SetChannel(pImage, id++, pixel.temp_vec[i].g);
-                        rgbImage.SetChannel(pImage, id++, pixel.temp_vec[i].b);
+                    if (is_enabled_reference) {
+                        // mse ref
+                        for (uint32_t i = startIter; i < (uint32_t)nIterations; ++i) {
+                            rgbImage.SetChannel(pImage, id++, pixel.mse_reference[i].r);
+                            rgbImage.SetChannel(pImage, id++, pixel.mse_reference[i].g);
+                            rgbImage.SetChannel(pImage, id++, pixel.mse_reference[i].b);
+                        }
                     }
                 });
 
@@ -3804,14 +3838,6 @@ std::unique_ptr<SPPMIntegrator> SPPMIntegrator::Create(
     Sampler sampler, Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
     int maxDepth = parameters.GetOneInt("maxdepth", 5);
     int photonsPerIter = parameters.GetOneInt("photonsperiteration", -1);
-
-    if (Options->mySppmPhotonsPerIter.has_value()) {
-        photonsPerIter = Options->mySppmPhotonsPerIter.value();
-        Warning(
-            "[YXH Extension] Overriding photonsPerIteration with %d from command line",
-            photonsPerIter);
-    }
-
     Float radius = parameters.GetOneFloat("radius", 1.f);
     int seed = parameters.GetOneInt("seed", Options->seed);
     return std::make_unique<SPPMIntegrator>(camera, sampler, aggregate, lights,
@@ -4130,6 +4156,10 @@ std::unique_ptr<Integrator> Integrator::Create(
     Sampler sampler, Primitive aggregate, std::vector<Light> lights,
     const RGBColorSpace *colorSpace, const FileLoc *loc) {
     std::unique_ptr<Integrator> integrator;
+
+    // printf("Integrator: %s\n", name.c_str());
+    // printf("Parameters: %s\n", parameters.ToString().c_str());
+
     if (name == "path")
         integrator =
             PathIntegrator::Create(parameters, camera, sampler, aggregate, lights, loc);

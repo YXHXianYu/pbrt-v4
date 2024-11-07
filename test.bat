@@ -15,9 +15,10 @@ set timestamp=%year%-%month%-%day%_%hour%-%minute%-%second%
 set outfile=test_%timestamp%.exr
 
 :: 执行你的命令
-.\build\Debug\pbrt.exe --spp 16 .\scene\contemporary-bathroom\contemporary-bathroom-test.pbrt --outfile %outfile%
-@REM .\build\Debug\pbrt.exe --spp 8 .\scene\contemporary-bathroom\contemporary-bathroom-test.pbrt --outfile %outfile%
+@REM .\build\Debug\pbrt.exe --spp 16 .\scene\contemporary-bathroom\contemporary-bathroom-test.pbrt --outfile %outfile%
+.\build\Debug\pbrt.exe --spp 4 .\scene\contemporary-bathroom\contemporary-bathroom-sppm.pbrt --outfile %outfile%
+@REM .\build\Debug\pbrt.exe --spp 4 .\scene\contemporary-bathroom\contemporary-bathroom-test.pbrt --outfile %outfile%
 @REM .\build\Debug\pbrt.exe --spp 10 ..\pbrt-v4-scenes-master\bistro\bistro_vespa-test.pbrt --outfile %outfile%
-@REM .\build\Debug\pbrt.exe --spp 10 ..\pbrt-v4-scenes-master\pbrt-book\book-test.pbrt --outfile %outfile%
+@REM .\build\Debug\pbrt.exe --spp 2 ..\pbrt-v4-scenes-master\pbrt-book\book-test.pbrt --outfile %outfile%
 
 endlocal

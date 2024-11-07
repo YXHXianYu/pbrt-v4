@@ -3,19 +3,23 @@
 Film "gbuffer"
     "float maxcomponentvalue" [ 50 ]
     "float iso" [ 600 ]
-    "string filename" [ "contemporary-bathroom-pt.exr" ]
+    "string filename" [ "contemporary-bathroom-test.exr" ]
     "integer yresolution" [ 384 ]
     "integer xresolution" [ 384 ]
 Scale -1 1 1
 LookAt 0 1.25 -0.5
     -10 0 -9
     0 1 0
+    #0 -1 0
+
 Camera "perspective"
     "float fov" [ 65 ]
 Sampler "halton"
     "integer pixelsamples" [ 128 ]
 
-Integrator "volpath" "integer maxdepth" [ 20 ]
+#Integrator "sppm" "integer maxdepth" [ 7 ] "float radius" 0.02 "integer photonsperiteration" 1000000
+Integrator "path" "integer maxdepth" [ 7 ]
+#Integrator "bdpt" "integer maxdepth" [ 7 ]
 
 
 WorldBegin

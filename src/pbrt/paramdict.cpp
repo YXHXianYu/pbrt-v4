@@ -418,7 +418,8 @@ std::vector<Spectrum> ParameterDictionary::extractSpectrumArray(
 
         int nSamples = param.floats.size() / 2;
         if (nSamples == 1) {
-            Warning(&param.loc, "Specified spectrum is only non-zero at a single wavelength. "
+            Warning(&param.loc,
+                    "Specified spectrum is only non-zero at a single wavelength. "
                     "This is probably unintended.");
         }
         return returnArray<Spectrum>(

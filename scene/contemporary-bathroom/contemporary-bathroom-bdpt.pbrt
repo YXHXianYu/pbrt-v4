@@ -17,8 +17,9 @@ Camera "perspective"
 Sampler "halton"
     "integer pixelsamples" [ 128 ]
 
-Integrator "sppm" "integer maxdepth" [ 5 ] "float radius" 0.02 "integer photonsperiteration" 1000000
-#Integrator "volpath" "integer maxdepth" [ 5 ]
+#Integrator "sppm" "integer maxdepth" [ 7 ] "float radius" 0.02 "integer photonsperiteration" 1000000
+#Integrator "path" "integer maxdepth" [ 7 ]
+Integrator "bdpt" "integer maxdepth" [ 7 ]
 
 
 WorldBegin

@@ -35,9 +35,14 @@ struct BasicPBRTOptions {
 
 // PBRTOptions Definition
 struct PBRTOptions : BasicPBRTOptions {
+    // injected by yxh
+    std::string myIntegratorName;
     std::string myReferenceImagePath;
+    pstd::optional<int> myMaxDepth;
     pstd::optional<int> mySppmPhotonsPerIter;
+    pstd::optional<float> mySppmRadius;
     bool isOnlyOutputLuminance = false;
+    bool isSppmSimplifyOutput = false;
 
     int nThreads = 0;
     LogLevel logLevel = LogLevel::Error;

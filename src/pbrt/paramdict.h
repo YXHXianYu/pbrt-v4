@@ -195,7 +195,12 @@ class ParameterDictionary {
     static std::string ToParameterDefinition(const ParsedParameter *p, int indentCount);
 
     // ParameterDictionary Private Members
-    ParsedParameterVector params;
+
+  public:
+    // injected by yxh
+    ParsedParameterVector params;  // i need to modify this outside this class
+
+  private:
     const RGBColorSpace *colorSpace = nullptr;
     int nOwnedParams;
 };

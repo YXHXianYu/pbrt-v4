@@ -11,6 +11,9 @@ build_release/
 test.exr
 test*.exr
 test*.txt
+*.exr
 .vscode/
 result_*/
 result/
+
+*.zip

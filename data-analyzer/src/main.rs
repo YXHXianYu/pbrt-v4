@@ -1,222 +1,59 @@
-extern crate exr;
+pub mod data;
+pub mod load_data;
+pub mod save_data;
+pub mod draw;
+pub mod utilities;
 
-use plotters::prelude::*;
-use exr::prelude::FlatSamples;
-use std::{collections::HashMap, ops::Range};
-
-#[allow(dead_code)]
-struct Data {
-    image: HashMap<String, FlatSamples>,
-    spp: u32,
-    num_of_pixels: u32
-}
+use load_data::*;
+use save_data::*;
+use data::*;
+// use draw::*;
+use utilities::*;
 
 // const INPUT_FILENAME: &str = "test_2024-11-02_10-45-41-spp16-ppi1e6-mse.max0.5f.exr";
 // const INPUT_FILENAME: &str = "test_2024-11-03_22-14-11-spp16-ppi1e6-no.mse.max.exr";
-const INPUT_FILENAME: &str = "2024-11-07_16-51-20_zeroday-frame120_sppm_16-L.exr";
-const OUTPUT_FOLDER_NAME: &str = "./";
-const OUTPUT_FILE_WIDTH: u32 = 1024;
-const OUTPUT_FILE_HEIGHT: u32 = 768;
-const NUM_OF_POINTS: u32 = 100; // 该数值越大，绘制的图形越精细
+// const INPUT_FILENAME: &str = "2024-11-07_16-51-20_zeroday-frame120_sppm_16-L.exr";
+// const OUTPUT_FOLDER_NAME: &str = "./";
+// const OUTPUT_FILE_WIDTH: u32 = 1024;
+// const OUTPUT_FILE_HEIGHT: u32 = 768;
+// const NUM_OF_POINTS: u32 = 100; // 该数值越大，绘制的图形越精细
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let data = load_data(INPUT_FILENAME);
-    if true {
-        draw(&data)
-    } else {
-        save_data(&data); // 提取出RGB通道并保存为新的exr文件
-        Ok(())
-    }
-}
+fn main() {
+    let files = read_all_exr_files_in_folder("../result/");
 
-fn load_data(filepath: &str) -> Data {
-    use exr::prelude::*;
+    for file in files {
 
-    // // load metadata
-    // let meta_data = MetaData::read_from_file(
-    //     filepath,
-    //     false // do not throw an error for invalid or missing attributes, skipping them instead
-    // ).expect(format!("run example `{}` to generate this image file", filepath).as_str());
+        let mut filename = file.split('/').collect::<Vec<&str>>();
+        filename.insert(filename.len() - 1, "data-converter-output");
 
-    // for (layer_index, image_layer) in meta_data.headers.iter().enumerate() {
-    //     println!(
-    //         "custom meta data of layer #{}:\n{:#?}",
-    //         layer_index, image_layer.own_attributes
-    //     );
-    // }
-
-    // load all channels
-    let image = read().no_deep_data()
-        .largest_resolution_level().all_channels().all_layers().all_attributes()
-        .on_progress(|progress| println!("progress: {:.1}", progress*100.0))
-        .from_file(filepath)
-        .expect(format!("run example `{}` to generate this image file", filepath).as_str());
-
-    let mut data = HashMap::new();
-    let mut spp: u32 = 0;
-    let num_of_pixels: u32 = image.layer_data[0].channel_data.list[0].sample_data.len() as u32;
-    
-    for layer in &image.layer_data {
-        for channel in &layer.channel_data.list {
-            let channel_name = convert_channel_name(channel.name.to_string());
-            if let Some(spp_cur) = get_content_in_2_char(&channel_name, '[', ']') {
-                spp = spp.max(spp_cur + 1);
-            }
-            data.insert(channel_name, channel.sample_data.clone());
+        // 去除前面形如2024-11-08_00-18-07_的时间戳
+        let (_, name) = filename.last().unwrap().split_at(20);
+        filename.pop();
+        filename.push(name);
+ 
+        // 简化bdpt文件名
+        let tmp;
+        if file.contains("bdpt") {
+            tmp = filename.last().unwrap().split('_').nth(0).unwrap().to_string() + ".exr";
+            filename.pop();
+            filename.push(&tmp);
         }
-    }
+        
+        let filename = filename.join("/").to_string();
+        create_directories_for_file(&filename).unwrap();
 
-    println!("SPP: {}", spp);
-    println!("Number of pixels: {}", num_of_pixels);
+        if file.contains("sppm") {
+            let data = load_data(file.as_str());
 
-    // for (key, _) in data.iter() {
-    //     println!("Channel: {}", key);
-    // }
+            let width = 384;
+            let height = 384;
 
-    Data{image: data, spp, num_of_pixels}
-}
-
-fn save_data(data: &Data) {
-    use exr::prelude::*;
-
-    let r = data.image["R"].values_as_f32().collect::<Vec<f32>>();
-    let g = data.image["G"].values_as_f32().collect::<Vec<f32>>();
-    let b = data.image["B"].values_as_f32().collect::<Vec<f32>>();
-
-    write_rgb_file(
-        "zeroday-frame120_bdpt_512.exr",
-        384,
-        384,
-        |x, y| {
-            (
-                r[(y * 384 + x) as usize],
-                g[(y * 384 + x) as usize],
-                b[(y * 384 + x) as usize]
-            )
-        }
-    ).unwrap();
-}
-
-fn get_content_in_2_char(name: &String, left_c: char, right_c: char) -> Option<u32> {
-    if let Some(right) = name.split(left_c).nth(1) {
-        if let Some(left) = right.split(right_c).nth(0) {
-            println!("{}", left);
-            Some(left.parse::<u32>().unwrap())
+            save_data_simplify_sppm(&data, width, height, &filename);
+        } else if file.contains("pt") || file.contains("bdpt") {
+            copy_file(file.as_str(), &filename);
         } else {
-            None
+            // do nothing
         }
-    } else {
-        None
+
     }
-}
-
-fn convert_channel_name(name: String) -> String {
-    let v = name.split('-').nth(1);
-    if let Some(v) = v {
-        v.to_string()
-    } else {
-        name
-    }
-}
-
-fn draw(data: &Data) -> Result<(), Box<dyn std::error::Error>> {
-
-    let width = OUTPUT_FILE_WIDTH;
-    let height = OUTPUT_FILE_HEIGHT;
-
-    let range_x = -0.01f32..0.2f32;
-    let range_y = 0.0f32..1.0f32;
-
-    for color in ["R", "G", "B"].iter() {
-        for idx in [format!("{:03}", data.spp - 1).as_str()].iter() {
-
-            let title = format!("MSE-MSERef[{}].{}", idx, color);
-            let filename = format!("{}-MSE-MSERef[{}].{}", INPUT_FILENAME, idx, color);
-            let mse = format!("MSE[{}].{}", idx, color);
-            let mseref = format!("MSERef[{}].{}", idx, color);
-
-            draw_multi_channels_distribution(data, title.as_str(), filename.as_str(), Vec::from([
-                (mse.as_str(), RED),
-                (mseref.as_str(), GREEN),
-            ]), width, height, range_x.clone(), range_y.clone())?;
-        }
-    }
-    
-    Ok(())
-}
-
-#[allow(non_snake_case)]
-fn draw_multi_channels_distribution(data: &Data, title: &str, filename: &str, channels: Vec<(&str, RGBColor)>, width: u32, height: u32, range_x: Range<f32>, range_y: Range<f32>) -> Result<(), Box<dyn std::error::Error>> {
-
-    if filename.contains("/") {
-        panic!("Filename cannot contain '/'");
-    }
-    for (channel_name, _) in channels.iter() {
-        assert!(data.image.contains_key(*channel_name));
-    }
-
-    let pathname = format!("{}/{}.png", OUTPUT_FOLDER_NAME, filename);
-
-    // println!("Start drawing {}", pathname);
-
-    let root = BitMapBackend::new(pathname.as_str(), (width, height)).into_drawing_area();
-    root.fill(&WHITE)?;
-
-    let mut chart = ChartBuilder::on(&root)
-        .caption(title, ("sans-serif", 50).into_font())
-        .margin(5)
-        .x_label_area_size(30)
-        .y_label_area_size(30)
-        .build_cartesian_2d(range_x.clone(), range_y.clone())?;
-
-    chart
-        .configure_mesh().draw()?;
-
-    let delta = (range_x.end - range_x.start) / (NUM_OF_POINTS as f32 + 1_f32);
-
-    let left_bound = (0..NUM_OF_POINTS)
-        .map(|x| if x == 0 { range_x.start } else { range_x.start + delta * (x as f32 + 0.5_f32) })
-        .collect::<Vec<f32>>();
-
-    for (channel_name, color) in channels {
-        let mut count: Vec<u32> = (0..NUM_OF_POINTS).map(|_| 0).collect();
-
-        data.image[channel_name].values_as_f32().for_each(|x| {
-            let mut L = 0_u32;
-            let mut R = NUM_OF_POINTS as u32;
-            while R - L > 1 {
-                let mid = (L + R) / 2;
-                if x >= left_bound[mid as usize] {
-                    L = mid;
-                } else {
-                    R = mid;
-                }
-            }
-            count[L as usize] += 1;
-        });
-
-        chart
-            .draw_series(LineSeries::new(
-                (0..NUM_OF_POINTS)
-                    .map(|x| (
-                        range_x.start + delta * (x as f32 + 1_f32),          // x
-                        count[x as usize] as f32 / data.num_of_pixels as f32 // y
-                    )),
-                color.clone(),
-            ))?
-            .label(channel_name)
-            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color.clone()));
-    }
-
-    chart
-        .configure_series_labels()
-        .background_style(&WHITE.mix(0.8))
-        .border_style(&BLACK)
-        .draw()?;
-
-    root.present()?;
-
-    println!("{} is done", pathname);
-
-    Ok(())
 }

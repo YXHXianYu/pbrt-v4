@@ -22,21 +22,22 @@ N_THREADS = 0 # 0: no limit
 
 # tip: how to use reference, e.g. "--my-reference-path", filename_ref,
 
-def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02):
+def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02, skip_bdpt=False):
 
-    spp = 512
-    # spp = 64
-    timestamp = get_timestamp_filename()
-    filename_ref = f"{timestamp}_{scene_name}_bdpt_{spp}.exr"
-    execute([
-        r".\build\Debug\pbrt.exe",
-        scene_path,
-        "--my-integrator", "bdpt",
-        "--spp", str(spp),
-        "--my-max-depth", str(MAX_DEPTH),
-        "--outfile", OUTPUT_FILE_PATH + filename_ref,
-        "--nthreads", str(N_THREADS),
-    ])
+    if not skip_bdpt:
+        spp = 512
+        # spp = 64
+        timestamp = get_timestamp_filename()
+        filename_ref = f"{timestamp}_{scene_name}_bdpt_{spp}.exr"
+        execute([
+            r".\build\Debug\pbrt.exe",
+            scene_path,
+            "--my-integrator", "bdpt",
+            "--spp", str(spp),
+            "--my-max-depth", str(MAX_DEPTH),
+            "--outfile", OUTPUT_FILE_PATH + filename_ref,
+            "--nthreads", str(N_THREADS),
+        ])
 
     spp = 4
     timestamp = get_timestamp_filename()
@@ -134,8 +135,8 @@ def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02):
 # 跳过这个场景，这个场景1.13G，读取太慢
 # generate_data_using_a_scene("bistro-vespa", r"..\pbrt-v4-scenes-master\bistro\bistro_vespa-common.pbrt")
 
-# generate_data_using_a_scene("book", r".\scene\pbrt-book\book-common.pbrt", sppm_radius=0.1)
-# generate_data_using_a_scene("bmw", r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-common.pbrt", sppm_radius=0.1)
+# generate_data_using_a_scene("book", r".\scene\pbrt-book\book-common.pbrt", sppm_radius=0.2)
+# generate_data_using_a_scene("bmw", r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-common.pbrt", sppm_radius=0.2)
 # generate_data_using_a_scene("zeroday-frame120", r"..\pbrt-v4-scenes-master\zero-day\frame120-common.pbrt")
 
 # generate_data_using_a_scene("bathroom2", r"..\benedikt-bitterli-scenes\bathroom2\scene-v4.pbrt")
@@ -144,11 +145,13 @@ def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02):
 # generate_data_using_a_scene("cornell-box", r"..\benedikt-bitterli-scenes\cornell-box\scene-v4.pbrt")
 # generate_data_using_a_scene("dining-room", r"..\benedikt-bitterli-scenes\dining-room\scene-v4.pbrt")
 # generate_data_using_a_scene("glass-of-water", r"..\benedikt-bitterli-scenes\glass-of-water\scene-v4.pbrt")
-# generate_data_using_a_scene("kitchen", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
-# generate_data_using_a_scene("living-room", r"..\benedikt-bitterli-scenes\living-room\scene-v4.pbrt")
-# generate_data_using_a_scene("living-room-2", r"..\benedikt-bitterli-scenes\living-room-2\scene-v4.pbrt")
-# generate_data_using_a_scene("staircase", r"..\benedikt-bitterli-scenes\staircase\scene-v4.pbrt")
-# generate_data_using_a_scene("staircase2", r"..\benedikt-bitterli-scenes\staircase2\scene-v4.pbrt")
-# generate_data_using_a_scene("veach-ajar", r"..\benedikt-bitterli-scenes\veach-ajar\scene-v4.pbrt")
-# generate_data_using_a_scene("veach-bidir", r"..\benedikt-bitterli-scenes\veach-bidir\scene-v4.pbrt")
+generate_data_using_a_scene("kitchen", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
+generate_data_using_a_scene("living-room", r"..\benedikt-bitterli-scenes\living-room\scene-v4.pbrt")
+generate_data_using_a_scene("living-room-2", r"..\benedikt-bitterli-scenes\living-room-2\scene-v4.pbrt")
+generate_data_using_a_scene("staircase", r"..\benedikt-bitterli-scenes\staircase\scene-v4.pbrt")
+generate_data_using_a_scene("staircase2", r"..\benedikt-bitterli-scenes\staircase2\scene-v4.pbrt")
+generate_data_using_a_scene("veach-ajar", r"..\benedikt-bitterli-scenes\veach-ajar\scene-v4.pbrt")
+generate_data_using_a_scene("veach-bidir", r"..\benedikt-bitterli-scenes\veach-bidir\scene-v4.pbrt")
+
+# 跳过这个场景，这个场景是caustic场景，pt无法正确渲染
 # generate_data_using_a_scene("water-caustic", r"..\benedikt-bitterli-scenes\water-caustic\scene-v4.pbrt")

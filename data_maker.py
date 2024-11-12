@@ -126,19 +126,23 @@ def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02, skip_b
         "--nthreads", str(N_THREADS),
     ])
 
-def generate_preview_using_a_scene(scene_name, scene_path):
-    spp = 4
+def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
     timestamp = get_timestamp_filename()
-    filename_ref = f"{timestamp}_{scene_name}_bdpt_{spp}.exr"
+    filename_ref = f"{timestamp}_{scene_name}_pt_{spp}.exr"
     execute([
         r".\build\Debug\pbrt.exe",
         scene_path,
-        "--my-integrator", "bdpt",
+        "--my-integrator", "path",
         "--spp", str(spp),
         "--my-max-depth", str(MAX_DEPTH),
         "--outfile", OUTPUT_FILE_PATH + filename_ref,
         "--nthreads", str(N_THREADS),
     ])
+
+generate_data_using_a_scene("pavilion", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day.pbrt")
+generate_data_using_a_scene("pavilion-v2", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v2.pbrt")
+generate_data_using_a_scene("pavilion-v3", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v3.pbrt")
+generate_data_using_a_scene("kroken-camera-1", r"..\pbrt-v4-scenes-master\kroken\camera-1.pbrt")
 
 # generate_data_using_a_scene("book", r".\scene\pbrt-book\book-common.pbrt", sppm_radius=0.2)
 # generate_data_using_a_scene("bmw", r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-common.pbrt", sppm_radius=0.2)
@@ -172,9 +176,9 @@ def generate_preview_using_a_scene(scene_name, scene_path):
 # generate_data_using_a_scene("living-room-v2", r"..\benedikt-bitterli-scenes\living-room\scene-v4-2.pbrt")
 # generate_data_using_a_scene("living-room-v3", r"..\benedikt-bitterli-scenes\living-room\scene-v4-3.pbrt")
 # generate_data_using_a_scene("staircase2-v2", r"..\benedikt-bitterli-scenes\staircase2\scene-v4-2.pbrt")
-generate_data_using_a_scene("staircase2-v3", r"..\benedikt-bitterli-scenes\staircase2\scene-v4-3.pbrt")
-generate_data_using_a_scene("veach-ajar-v2", r"..\benedikt-bitterli-scenes\veach-ajar\scene-v4-2.pbrt")
-generate_data_using_a_scene("veach-ajar-v3", r"..\benedikt-bitterli-scenes\veach-ajar\scene-v4-3.pbrt")
+# generate_data_using_a_scene("staircase2-v3", r"..\benedikt-bitterli-scenes\staircase2\scene-v4-3.pbrt")
+# generate_data_using_a_scene("veach-ajar-v2", r"..\benedikt-bitterli-scenes\veach-ajar\scene-v4-2.pbrt")
+# generate_data_using_a_scene("veach-ajar-v3", r"..\benedikt-bitterli-scenes\veach-ajar\scene-v4-3.pbrt")
 
 # 跳过这个场景，pt <-> bdpt/sppm 的渲染结果差异过大，是一个pt无法收敛的典型场景
 # generate_data_using_a_scene("bathroom", r".\scene\contemporary-bathroom\contemporary-bathroom-common.pbrt", sppm_radius=0.02) 

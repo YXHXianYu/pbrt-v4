@@ -763,6 +763,7 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
     if (film.name.ToString() == "gbuffer" && Options->myIntegratorName == "bdpt") {
         std::string *let_it_free = new std::string("rgb");
         film.name = InternedString(let_it_free);
+        // printf("File.name: %s\n", film.ToString().c_str());
         Warning("[YXH Ext] GBuffer film is not compatible with BDPT integrator. "
                 "Automatically switching to RGB film!");
     }

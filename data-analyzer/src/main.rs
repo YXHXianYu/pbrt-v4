@@ -22,7 +22,16 @@ fn main() {
     let files = read_all_exr_files_in_folder("../result/");
 
     for file in files {
+        check_image_float_precision(&file);
+    }
 
+    // convert_result(&files);
+}
+
+
+#[allow(dead_code)]
+fn convert_result(files: &Vec<String>) {
+    for file in files {
         let mut filename = file.split('/').collect::<Vec<&str>>();
         filename.insert(filename.len() - 1, "data-converter-output");
 
@@ -54,6 +63,5 @@ fn main() {
         } else {
             // do nothing
         }
-
     }
 }

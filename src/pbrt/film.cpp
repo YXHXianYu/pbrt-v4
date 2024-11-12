@@ -578,6 +578,11 @@ RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTi
     Float maxComponentValue = parameters.GetOneFloat("maxcomponentvalue", Infinity);
     bool writeFP16 = parameters.GetOneBool("savefp16", true);
 
+    // printf(writeFP16 ? "[YXH Ext] writeFP16 is true\n"
+    //                  : "[YXH Ext] writeFP16 is false\n");
+    Warning("[YXH Ext] Output image will be saved in f32 format.");
+    writeFP16 = false;
+
     PixelSensor *sensor =
         PixelSensor::Create(parameters, colorSpace, exposureTime, loc, alloc);
     FilmBaseParameters filmBaseParameters(parameters, filter, sensor, loc);
@@ -819,6 +824,11 @@ GBufferFilm *GBufferFilm::Create(const ParameterDictionary &parameters,
     Float maxComponentValue = parameters.GetOneFloat("maxcomponentvalue", Infinity);
     bool writeFP16 = parameters.GetOneBool("savefp16", true);
 
+    // printf(writeFP16 ? "[YXH Ext] writeFP16 is true\n"
+    //                  : "[YXH Ext] writeFP16 is false\n");
+    Warning("[YXH Ext] Output image will be saved in f32 format.");
+    writeFP16 = false;
+
     PixelSensor *sensor =
         PixelSensor::Create(parameters, colorSpace, exposureTime, loc, alloc);
 
@@ -1044,6 +1054,11 @@ SpectralFilm *SpectralFilm::Create(const ParameterDictionary &parameters,
         PixelSensor::Create(parameters, colorSpace, exposureTime, loc, alloc);
     FilmBaseParameters filmBaseParameters(parameters, filter, sensor, loc);
     bool writeFP16 = parameters.GetOneBool("savefp16", true);
+
+    // printf(writeFP16 ? "[YXH Ext] writeFP16 is true\n"
+    //                  : "[YXH Ext] writeFP16 is false\n");
+    Warning("[YXH Ext] Output image will be saved in f32 format.");
+    writeFP16 = false;
 
     if (!HasExtension(filmBaseParameters.filename, "exr"))
         ErrorExit(loc, "%s: EXR is the only output format supported by the SpectralFilm.",

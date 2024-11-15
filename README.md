@@ -10,7 +10,6 @@
   * `--only-output-luminance`
     * 可以只输出RGB + 历史RGB
     * 用于生成referencec，避免输出文件过大。如果能接受超大reference输出（256次迭代 ≈ 500MB），可以不用启用本选项
-    * **注意，代码中疑似有bug，在spp256 + 1e7光子情况下，最后输出结果可能会变成黑色。所以我这里附带了历史RGB**
   * `--my-reference-path`
     * 从命令行指定Refenrece Image
 * 推荐参数

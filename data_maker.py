@@ -22,7 +22,7 @@ N_THREADS = 0 # 0: no limit
 
 # tip: how to use reference, e.g. "--my-reference-path", filename_ref,
 
-def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02, skip_bdpt=False):
+def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=1.0, skip_bdpt=False):
 
     if not skip_bdpt:
         spp = 512
@@ -139,10 +139,34 @@ def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
         "--nthreads", str(N_THREADS),
     ])
 
-generate_data_using_a_scene("pavilion", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day.pbrt")
-generate_data_using_a_scene("pavilion-v2", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v2.pbrt")
-generate_data_using_a_scene("pavilion-v3", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v3.pbrt")
-generate_data_using_a_scene("kroken-camera-1", r"..\pbrt-v4-scenes-master\kroken\camera-1.pbrt")
+def generate_sppm_using_a_scene(scene_name, scene_path, spp=1, sppm_radius=1.0):
+    reference_file = "./bathroom-reference-resolution384x384-sppm-kervel.v2-spp256-ppi8e6.exr"
+    timestamp = get_timestamp_filename()
+    filename_ref = f"{timestamp}_{scene_name}_sppm_{spp}.exr"
+    execute([
+        r".\build\Debug\pbrt.exe",
+        scene_path,
+        "--my-integrator", "sppm",
+        "--spp", str(spp),
+        "--my-max-depth", str(MAX_DEPTH),
+        "--my-sppm-photons-per-iter", str(SPPM_PHOTONS_PER_ITER),
+        "--my-sppm-radius", str(sppm_radius),
+        "--outfile", OUTPUT_FILE_PATH + filename_ref,
+        "--my-reference-path", reference_file,
+        # "--sppm-simplify-output",
+        "--nthreads", str(N_THREADS),
+    ])
+
+# generate_sppm_using_a_scene("bathroom", r".\scene\contemporary-bathroom\contemporary-bathroom-common.pbrt", spp=16, sppm_radius=0.02)
+generate_sppm_using_a_scene("bathroom2", r"..\benedikt-bitterli-scenes\bathroom2\scene-v4.pbrt", spp=16, sppm_radius=1.0)
+
+# generate_data_using_a_scene("pavilion", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day.pbrt")
+# generate_data_using_a_scene("pavilion-v2", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v2.pbrt")
+# generate_data_using_a_scene("pavilion-v3", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v3.pbrt")
+# generate_data_using_a_scene("kroken-camera-1", r"..\pbrt-v4-scenes-master\kroken\camera-1.pbrt")
+# generate_data_using_a_scene("kroken-camera-2", r"..\pbrt-v4-scenes-master\kroken\camera-2.pbrt")
+# generate_data_using_a_scene("kroken-camera-3", r"..\pbrt-v4-scenes-master\kroken\camera-3.pbrt")
+# generate_data_using_a_scene("kroken-camera-4", r"..\pbrt-v4-scenes-master\kroken\camera-4.pbrt")
 
 # generate_data_using_a_scene("book", r".\scene\pbrt-book\book-common.pbrt", sppm_radius=0.2)
 # generate_data_using_a_scene("bmw", r"..\pbrt-v4-scenes-master\bmw-m6\bmw-m6-common.pbrt", sppm_radius=0.2)

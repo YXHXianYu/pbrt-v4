@@ -13,5 +13,5 @@ build:
 
 # run the built binary
 run:
-    #.\test.bat
+    # .\test.bat
     python .\data_maker.py

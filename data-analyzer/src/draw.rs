@@ -20,9 +20,9 @@ pub fn draw(
         for idx in [format!("{:03}", data.spp - 1).as_str()].iter() {
 
             let title = format!("MSE-MSERef[{}].{}", idx, color);
-            let filename = format!("{}-MSE-MSERef[{}].{}", filename_prefix, idx, color);
-            let mse = format!("MSE[{}].{}", idx, color);
-            let mseref = format!("MSERef[{}].{}", idx, color);
+            let filename = format!("{}-MSE-MSERef[{}].{}.png", filename_prefix, idx, color);
+            let mse = format!("B5-MSE[{}].{}", idx, color);
+            let mseref = format!("B6-MSERef[{}].{}", idx, color);
 
             draw_multi_channels_distribution(data, title.as_str(), filename.as_str(), Vec::from([
                 (mse.as_str(), RED),

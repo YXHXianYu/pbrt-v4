@@ -3325,16 +3325,19 @@ void SPPMIntegrator::Render() {
 
                                 Float distance = Distance(pixel.vp.p, isect.p());
 
-                                Float h = pixel.radius;
+                                Float dx = distance / initialSearchRadius;
+
+                                // Float h = 1.0;
+                                Float h = pixel.radius / initialSearchRadius;
                                 Float inverse_h = 1.0 / h;
-                                Float inverse_h2 = inverse_h * inverse_h;
-                                Float inverse_h3 = inverse_h * inverse_h * inverse_h;
 
                                 {  // 0th derivative
                                     // Float k = 1.0;
 
-                                    // 这里的inverse_h是一个标准化，而不应该看作窗宽h，所以不应该加修正项
-                                    Float k = kernel_toshiya(distance * inverse_h);
+                                    // inverse_h0是标准化
+                                    // 而inverse_h才是窗宽h的逆
+                                    // Float k = kernel_toshiya(dx);
+                                    Float k = kernel_toshiya(dx * inverse_h) * inverse_h;
 
                                     SampledSpectrum Phi =
                                         beta * pixel.vp.bsdf.f(pixel.vp.wo, wi) * k;
@@ -3345,8 +3348,10 @@ void SPPMIntegrator::Render() {
                                 }
 
                                 {  // 2nd derivative
+                                    // Float k = kernel_toshiya_2_derivative(dx);
                                     Float k =
-                                        kernel_toshiya_2_derivative(distance * inverse_h);
+                                        kernel_toshiya_2_derivative(dx * inverse_h) *
+                                        inverse_h;
 
                                     SampledSpectrum Phi =
                                         beta * pixel.vp.bsdf.f(pixel.vp.wo, wi) * k;
@@ -3456,13 +3461,12 @@ void SPPMIntegrator::Render() {
                 // 论文中的公式
                 // p.bias = 0.5 * Sqr(rNew) * p.k_2 * p.L_2_derivative;
                 // 我们自己根据KDE的bias推导的新公式
-                p.bias = 0.5 * p.k_2 * p.L_2_derivative;
+                // p.bias = 0.5 * p.k_2 * p.L_2_derivative;
+                // 新假设
+                Float h = p.radius / initialSearchRadius;
+                // Float h = 1.0;
+                p.bias = 0.5 * h * h * p.k_2 * p.L_2_derivative;
 
-                RGB tmp = 0.5 * 1.0 * p.k_2 * p.L_2_derivative;
-                for (uint32_t c = 0; c < 3; c++)
-                    tmp[c] = std::min(1.0f, p.bias[c]);
-
-                // p.bias = std::abs(p.bias);
                 p.bias_estimate[iter] = p.bias;
             }
             {

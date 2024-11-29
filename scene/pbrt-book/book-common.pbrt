@@ -1,5 +1,5 @@
-Sampler "halton"
-    "integer pixelsamples" [ 2048 ]
+Sampler "independent"
+PixelFilter "box"
 Film "gbuffer"
     "string filename" [ "book-sppm.exr" ]
     "integer yresolution" [ 384 ]

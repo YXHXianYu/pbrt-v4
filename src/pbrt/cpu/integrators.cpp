@@ -3325,10 +3325,11 @@ void SPPMIntegrator::Render() {
 
                                 Float distance = Distance(pixel.vp.p, isect.p());
 
-                                Float dx = distance / initialSearchRadius;
+                                Float dx = distance / pixel.radius;
+                                // Float dx = distance / initialSearchRadius;
 
-                                // Float h = 1.0;
-                                Float h = pixel.radius / initialSearchRadius;
+                                Float h = 1.0;
+                                // Float h = pixel.radius / initialSearchRadius;
                                 Float inverse_h = 1.0 / h;
 
                                 {  // 0th derivative
@@ -3336,8 +3337,7 @@ void SPPMIntegrator::Render() {
 
                                     // inverse_h0是标准化
                                     // 而inverse_h才是窗宽h的逆
-                                    // Float k = kernel_toshiya(dx);
-                                    Float k = kernel_toshiya(dx * inverse_h) * inverse_h;
+                                    Float k = kernel_toshiya(dx);
 
                                     SampledSpectrum Phi =
                                         beta * pixel.vp.bsdf.f(pixel.vp.wo, wi) * k;
@@ -3349,9 +3349,7 @@ void SPPMIntegrator::Render() {
 
                                 {  // 2nd derivative
                                     // Float k = kernel_toshiya_2_derivative(dx);
-                                    Float k =
-                                        kernel_toshiya_2_derivative(dx * inverse_h) *
-                                        inverse_h;
+                                    Float k = kernel_toshiya_2_derivative(dx);
 
                                     SampledSpectrum Phi =
                                         beta * pixel.vp.bsdf.f(pixel.vp.wo, wi) * k;
@@ -3463,8 +3461,8 @@ void SPPMIntegrator::Render() {
                 // 我们自己根据KDE的bias推导的新公式
                 // p.bias = 0.5 * p.k_2 * p.L_2_derivative;
                 // 新假设
-                Float h = p.radius / initialSearchRadius;
-                // Float h = 1.0;
+                // Float h = p.radius / initialSearchRadius;
+                Float h = 1.0;
                 p.bias = 0.5 * h * h * p.k_2 * p.L_2_derivative;
 
                 p.bias_estimate[iter] = p.bias;

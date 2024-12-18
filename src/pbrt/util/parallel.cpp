@@ -332,7 +332,8 @@ void ParallelFor2D(const Bounds2i &extent, std::function<void(Bounds2i)> func) {
 ///////////////////////////////////////////////////////////////////////////
 
 int AvailableCores() {
-    return std::max<int>(1, std::thread::hardware_concurrency());
+    // return std::max<int>(1, std::thread::hardware_concurrency());
+    return 190;
 }
 
 int RunningThreads() {

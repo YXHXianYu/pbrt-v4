@@ -19,7 +19,7 @@ RESOLUTION_X = 512
 RESOLUTION_Y = 512
 SPPM_PHOTONS_PER_ITER = int(1.4 * (RESOLUTION_X * RESOLUTION_Y)) # 1.4 x pixels
 OUTPUT_FILE_PATH = "result/"
-N_THREADS = 6 # 0: no limit
+N_THREADS = 0 # 0: no limit
 
 # tip: how to use reference, e.g. "--my-reference-path", filename_ref,
 

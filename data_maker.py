@@ -19,7 +19,7 @@ RESOLUTION_X = 512
 RESOLUTION_Y = 512
 SPPM_PHOTONS_PER_ITER = int(1.4 * (RESOLUTION_X * RESOLUTION_Y)) # 1.4 x pixels
 OUTPUT_FILE_PATH = "result/"
-N_THREADS = 0 # 0: no limit
+N_THREADS = 6 # 0: no limit
 
 # tip: how to use reference, e.g. "--my-reference-path", filename_ref,
 
@@ -73,16 +73,13 @@ def __sppm_command(scene_name, scene_path, spp, sppm_radius):
 
 def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02, skip_bdpt=False):
     # bdpt
-    # __bdpt_command(scene_name, scene_path, 512)
-    # __bdpt_command(scene_name, scene_path, 4)
+    __bdpt_command(scene_name, scene_path, 512)
     # pt
-    # __pt_command(scene_name, scene_path, 4)
-    # __pt_command(scene_name, scene_path, 64)
-    __pt_command(scene_name, scene_path, 2)
+    __pt_command(scene_name, scene_path, 4)
+    __pt_command(scene_name, scene_path, 64)
     # sppm
-    # __sppm_command(scene_name, scene_path, 4, sppm_radius)
-    # __sppm_command(scene_name, scene_path, 64, sppm_radius)
-    # __sppm_command(scene_name, scene_path, 2, sppm_radius)
+    __sppm_command(scene_name, scene_path, 4, sppm_radius)
+    __sppm_command(scene_name, scene_path, 64, sppm_radius)
 
 def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
     __pt_command(scene_name, scene_path, spp)
@@ -94,9 +91,16 @@ def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
 
 # filter=box and sampler=independent
 
-generate_data_using_a_scene("kitchen", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
-generate_data_using_a_scene("kitchen-v2", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-2.pbrt")
-generate_data_using_a_scene("kitchen-v3", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-3.pbrt")
+generate_data_using_a_scene("kitchen-1", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
+generate_data_using_a_scene("kitchen-2", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-2.pbrt")
+generate_data_using_a_scene("kitchen-3", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-3.pbrt")
+generate_data_using_a_scene("kitchen-4", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-4.pbrt")
+generate_data_using_a_scene("kitchen-5", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-5.pbrt")
+generate_data_using_a_scene("kitchen-6", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-6.pbrt")
+generate_data_using_a_scene("kitchen-7", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-7.pbrt")
+generate_data_using_a_scene("kitchen-8", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-8.pbrt")
+generate_data_using_a_scene("kitchen-9", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-9.pbrt")
+generate_data_using_a_scene("kitchen-10", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-10.pbrt")
 
 # generate_data_using_a_scene("bedroom", r"..\benedikt-bitterli-scenes\bedroom\scene-v4.pbrt")
 # generate_data_using_a_scene("bedroom-v2", r"..\benedikt-bitterli-scenes\bedroom\scene-v4-2.pbrt")

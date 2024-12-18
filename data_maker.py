@@ -82,7 +82,7 @@ def generate_data_using_a_scene(scene_name, scene_path, sppm_radius=0.02, skip_b
     # sppm
     # __sppm_command(scene_name, scene_path, 4, sppm_radius)
     # __sppm_command(scene_name, scene_path, 64, sppm_radius)
-    __sppm_command(scene_name, scene_path, 2, sppm_radius)
+    # __sppm_command(scene_name, scene_path, 2, sppm_radius)
 
 def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
     __pt_command(scene_name, scene_path, spp)
@@ -94,9 +94,13 @@ def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
 
 # filter=box and sampler=independent
 
-generate_data_using_a_scene("bedroom", r"..\benedikt-bitterli-scenes\bedroom\scene-v4.pbrt")
-generate_data_using_a_scene("bedroom-v2", r"..\benedikt-bitterli-scenes\bedroom\scene-v4-2.pbrt")
-generate_data_using_a_scene("bedroom-v3", r"..\benedikt-bitterli-scenes\bedroom\scene-v4-3.pbrt")
+generate_data_using_a_scene("kitchen", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
+generate_data_using_a_scene("kitchen-v2", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-2.pbrt")
+generate_data_using_a_scene("kitchen-v3", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-3.pbrt")
+
+# generate_data_using_a_scene("bedroom", r"..\benedikt-bitterli-scenes\bedroom\scene-v4.pbrt")
+# generate_data_using_a_scene("bedroom-v2", r"..\benedikt-bitterli-scenes\bedroom\scene-v4-2.pbrt")
+# generate_data_using_a_scene("bedroom-v3", r"..\benedikt-bitterli-scenes\bedroom\scene-v4-3.pbrt")
 
 # generate_data_using_a_scene("pavilion", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day.pbrt", sppm_radius=1.0)
 # generate_data_using_a_scene("pavilion-v2", r"..\pbrt-v4-scenes-master\barcelona-pavilion\pavilion-day-v2.pbrt", sppm_radius=1.0)
@@ -110,7 +114,6 @@ generate_data_using_a_scene("bedroom-v3", r"..\benedikt-bitterli-scenes\bedroom\
 # generate_data_using_a_scene("cornell-box", r"..\benedikt-bitterli-scenes\cornell-box\scene-v4.pbrt")
 # generate_data_using_a_scene("dining-room", r"..\benedikt-bitterli-scenes\dining-room\scene-v4.pbrt")
 # generate_data_using_a_scene("glass-of-water", r"..\benedikt-bitterli-scenes\glass-of-water\scene-v4.pbrt")
-# generate_data_using_a_scene("kitchen", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
 # generate_data_using_a_scene("living-room", r"..\benedikt-bitterli-scenes\living-room\scene-v4.pbrt")
 # generate_data_using_a_scene("living-room-2", r"..\benedikt-bitterli-scenes\living-room-2\scene-v4.pbrt")
 # generate_data_using_a_scene("staircase", r"..\benedikt-bitterli-scenes\staircase\scene-v4.pbrt")
@@ -126,8 +129,6 @@ generate_data_using_a_scene("bedroom-v3", r"..\benedikt-bitterli-scenes\bedroom\
 # generate_data_using_a_scene("dining-room-v3", r"..\benedikt-bitterli-scenes\dining-room\scene-v4-3.pbrt")
 # generate_data_using_a_scene("glass-of-water-v2", r"..\benedikt-bitterli-scenes\glass-of-water\scene-v4-2.pbrt")
 # generate_data_using_a_scene("glass-of-water-v3", r"..\benedikt-bitterli-scenes\glass-of-water\scene-v4-3.pbrt")
-# generate_data_using_a_scene("kitchen-v2", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-2.pbrt")
-# generate_data_using_a_scene("kitchen-v3", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-3.pbrt")
 # generate_data_using_a_scene("living-room-v2", r"..\benedikt-bitterli-scenes\living-room\scene-v4-2.pbrt")
 # generate_data_using_a_scene("living-room-v3", r"..\benedikt-bitterli-scenes\living-room\scene-v4-3.pbrt")
 # generate_data_using_a_scene("staircase2-v2", r"..\benedikt-bitterli-scenes\staircase2\scene-v4-2.pbrt")

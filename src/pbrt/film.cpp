@@ -191,8 +191,8 @@ std::string FilmBase::BaseToString() const {
 
 // VisibleSurface Method Definitions
 VisibleSurface::VisibleSurface(const SurfaceInteraction &si, SampledSpectrum albedo,
-                               const SampledWavelengths &lambda)
-    : albedo(albedo) {
+                               const SampledWavelengths &lambda, bool _is_direct_lighting)
+    : albedo(albedo), is_direct_lighting(_is_direct_lighting) {
     set = true;
     // Initialize geometric _VisibleSurface_ members
     p = si.p();
@@ -605,8 +605,13 @@ void GBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
         p.gBufferWeightSum += weight;
 
         // Update variance estimates.
-        for (int c = 0; c < 3; ++c)
-            p.rgbVariance[c].Add(rgb[c]);
+        for (int c = 0; c < 3; ++c) {
+            if (visibleSurface->is_direct_lighting) {
+                p.rgbVariance[c].Add(0.0f);
+            } else {
+                p.rgbVariance[c].Add(rgb[c]);
+            }
+        }
 
         if (applyInverse) {
             p.pSum += weight * outputFromRender.ApplyInverse(visibleSurface->p,

@@ -136,7 +136,7 @@ class VisibleSurface {
     // VisibleSurface Public Methods
     PBRT_CPU_GPU
     VisibleSurface(const SurfaceInteraction &si, SampledSpectrum albedo,
-                   const SampledWavelengths &lambda);
+                   const SampledWavelengths &lambda, bool is_direct_lighting = false);
 
     PBRT_CPU_GPU
     operator bool() const { return set; }
@@ -153,6 +153,7 @@ class VisibleSurface {
     Vector3f dpdx, dpdy;
     SampledSpectrum albedo;
     bool set = false;
+    bool is_direct_lighting = false;
 };
 
 // FilmBaseParameters Definition

@@ -635,6 +635,8 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
     bool specularBounce = false, anyNonSpecularBounces = false;
     LightSampleContext prevIntrCtx;
 
+    bool is_direct_lighting = false;
+
     // Sample path from camera and accumulate radiance estimate
     while (true) {
         // Trace ray and find closest path vertex and its BSDF
@@ -672,6 +674,10 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
 
                 L += beta * w_l * Le;
             }
+
+            if (depth == 0 || specularBounce) {
+                is_direct_lighting = true;
+            }
         }
 
         SurfaceInteraction &isect = si->intr;
@@ -684,7 +690,7 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
         }
 
         // Initialize _visibleSurf_ at first intersection
-        if (depth == 0 && visibleSurf) {
+        if ((depth == 0 || specularBounce) && visibleSurf) {
             // Estimate BSDF's albedo
             // Define sample arrays _ucRho_ and _uRho_ for reflectance estimate
             constexpr int nRhoSamples = 16;
@@ -704,7 +710,7 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
 
             SampledSpectrum albedo = bsdf.rho(isect.wo, ucRho, uRho);
 
-            *visibleSurf = VisibleSurface(isect, albedo, lambda);
+            *visibleSurf = VisibleSurface(isect, albedo, lambda, is_direct_lighting);
         }
 
         // Possibly regularize the BSDF
@@ -2829,6 +2835,8 @@ struct SPPMPixel {
     RGB L;
     Float n = 0;
 
+    bool is_direct_lighting = false;
+
     // progressive error estimation (refer to this paper)
     Float k_1 = 2.0 * Pi / 7.0;
     Float k_2 = 10.0 * Pi / 168.0;
@@ -3090,6 +3098,11 @@ void SPPMIntegrator::Render() {
                             Float w_l = PowerHeuristic(1, p_b, 1, p_l);
 
                             L += beta * w_l * Le;
+                        }
+
+                        // 标记是否是直接光照
+                        if (depth == 0 || specularBounce) {
+                            pixel.is_direct_lighting = true;
                         }
                     }
 
@@ -3473,7 +3486,9 @@ void SPPMIntegrator::Render() {
             }
 
             if (!Options->isSppmSimplifyOutput || iter == nIterations - 1) {
-                {  // variance estimate
+                {
+                    // MARK: * Variance
+
                     // 间接光
                     for (uint32_t channel = 0; channel < 3; channel++) {
                         Float tmp1 = 0.0;  // sigma (x_j)^2
@@ -3502,8 +3517,19 @@ void SPPMIntegrator::Render() {
                         else
                             p.variance[channel] += sum / iter;
                     }
+
+                    if (p.is_direct_lighting) {
+                        // spj
+                        for (uint32_t c = 0; c < 3; c++) {
+                            p.variance[c] = 0.0f;
+                        }
+                    }
+
                     // sum
                     p.variance_estimate[iter] = p.variance;
+
+                    // MARK: * MSE
+
                     // Float mse_limit = 0.5f;
                     Float mse_limit = 1e38f;
                     {  // mse estimate

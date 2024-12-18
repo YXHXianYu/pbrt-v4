@@ -43,6 +43,8 @@ struct PBRTOptions : BasicPBRTOptions {
     pstd::optional<float> mySppmRadius;
     bool isOnlyOutputLuminance = false;
     bool isSppmSimplifyOutput = false;
+    pstd::optional<int> myResolutionX;
+    pstd::optional<int> myResolutionY;
 
     int nThreads = 0;
     LogLevel logLevel = LogLevel::Error;

@@ -184,6 +184,10 @@ int main(int argc, char *argv[]) {
                      &options.isOnlyOutputLuminance, onError) ||
             ParseArg(&iter, args.end(), "sppm-simplify-output",
                      &options.isSppmSimplifyOutput, onError) ||
+            ParseArg(&iter, args.end(), "my-resolution-x", &options.myResolutionX,
+                     onError) ||
+            ParseArg(&iter, args.end(), "my-resolution-y", &options.myResolutionY,
+                     onError) ||
 
             // pbrt
             ParseArg(&iter, args.end(), "debugstart", &options.debugStart, onError) ||

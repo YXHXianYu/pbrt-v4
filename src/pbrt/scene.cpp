@@ -768,6 +768,17 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
                 "Automatically switching to RGB film!");
     }
 
+    for (ParsedParameter *p : film.parameters.params) {
+        if (Options->myResolutionX.has_value() && p->name == "xresolution") {
+            p->ints[0] = Options->myResolutionX.value();
+            printf("[YXH Ext] Overriding `xresolution` with %d\n", p->ints[0]);
+        }
+        if (Options->myResolutionY.has_value() && p->name == "yresolution") {
+            p->ints[0] = Options->myResolutionY.value();
+            printf("[YXH Ext] Overriding `yresolution` with %d\n", p->ints[0]);
+        }
+    }
+
     this->film = Film::Create(film.name, film.parameters, exposureTime,
                               camera.cameraTransform, filt, &film.loc, alloc);
     LOG_VERBOSE("Finished creating filter and film");

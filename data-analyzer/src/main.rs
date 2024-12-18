@@ -19,25 +19,25 @@ use utilities::*;
 // const NUM_OF_POINTS: u32 = 100; // 该数值越大，绘制的图形越精细
 
 fn main() {
-    // let files = read_all_exr_files_in_folder("../result/");
-    let files = read_all_exr_files_in_folder("./input/");
+    let files = read_all_exr_files_in_folder("../result/");
+    // let files = read_all_exr_files_in_folder("./input/");
 
     // for file in files {
     //     check_image_float_precision(&file);
     // }
 
-    for file in files {
-        let data = load_data(&file);
+    // for file in files {
+    //     let data = load_data(&file);
 
-        let width = 1080;
-        let height = 720;
+    //     let width = 1080;
+    //     let height = 720;
 
-       draw(&data, width, height, 100, "output/").unwrap();
-    }
+    //    draw(&data, width, height, 100, "output/").unwrap();
+    // }
 
     // calculate_bias_statistics(&files);
 
-    // convert_result(&files);
+    convert_result(&files);
 }
 
 

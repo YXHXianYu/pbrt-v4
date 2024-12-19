@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use crate::Data;
+use crate::prelude::*;
 
 pub fn get_spp_from_all_channel_name(data: &Data) -> Option<u32> {
     for name in data.image.keys() {
@@ -18,6 +18,12 @@ pub fn get_spp_from_a_name(name: &str) -> Option<u32> {
         }
     }
     return None;
+}
+
+pub fn create_a_directory(file_path: &str) -> Result<(), std::io::Error> {
+    let path = Path::new(file_path);
+    fs::create_dir_all(path)?;
+    Ok(())
 }
 
 pub fn create_directories_for_file(file_path: &str) -> Result<(), std::io::Error> {

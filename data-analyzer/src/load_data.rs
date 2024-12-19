@@ -1,4 +1,4 @@
-use crate::{get_spp_from_a_name, Data};
+use crate::prelude::*;
 use std::collections::HashMap;
 
 pub fn load_data(filepath: &str) -> Data {
@@ -14,6 +14,11 @@ pub fn load_data(filepath: &str) -> Data {
     let mut data = HashMap::new();
     let mut spp: u32 = 0;
     let num_of_pixels: u32 = image.layer_data[0].channel_data.list[0].sample_data.len() as u32;
+
+    let resolution = (
+        image.attributes.display_window.size.0 as usize,
+        image.attributes.display_window.size.1 as usize
+    );
     
     for layer in &image.layer_data {
         for channel in &layer.channel_data.list {
@@ -39,7 +44,12 @@ pub fn load_data(filepath: &str) -> Data {
     //     println!("Channel: {}", key);
     // }
 
-    Data{image: data, spp, num_of_pixels}
+    Data {
+        image: data,
+        spp,
+        num_of_pixels,
+        resolution
+    }
 }
 
 #[allow(dead_code)]

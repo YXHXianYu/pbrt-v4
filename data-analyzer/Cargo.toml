@@ -1,11 +1,19 @@
 [package]
-name = "photon-openexr-viewer"
+name = "dsc-data-analyser"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 exr = "1.73.0"
 plotters = "0.3.7"
+
+[[bin]]
+name = "data-converter-1"
+path = "src/bin/data_converter_1.rs"
+
+[[bin]]
+name = "data-converter-2"
+path = "src/bin/data_converter_2.rs"
 
 [profile.release]
 lto = true

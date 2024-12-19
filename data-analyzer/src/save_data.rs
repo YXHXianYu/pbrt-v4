@@ -1,4 +1,4 @@
-use crate::Data;
+use crate::prelude::*;
 
 pub fn save_data_rgb(data: &Data, width: usize, height: usize) {
     use exr::prelude::*;

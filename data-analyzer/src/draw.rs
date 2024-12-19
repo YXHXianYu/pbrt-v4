@@ -1,4 +1,4 @@
-use crate::Data;
+use crate::prelude::*;
 use plotters::prelude::*;
 use std::ops::Range;
 

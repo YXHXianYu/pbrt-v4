@@ -19,7 +19,7 @@ RESOLUTION_X = 512
 RESOLUTION_Y = 512
 SPPM_PHOTONS_PER_ITER = int(1.4 * (RESOLUTION_X * RESOLUTION_Y)) # 1.4 x pixels
 OUTPUT_FILE_PATH = "result/"
-N_THREADS = 0 # 0: no limit
+N_THREADS = 8 # 0: no limit
 
 # tip: how to use reference, e.g. "--my-reference-path", filename_ref,
 
@@ -91,7 +91,7 @@ def generate_preview_using_a_scene(scene_name, scene_path, spp=1):
 
 # filter=box and sampler=independent
 
-generate_data_using_a_scene("kitchen-1", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
+# generate_data_using_a_scene("kitchen-1", r"..\benedikt-bitterli-scenes\kitchen\scene-v4.pbrt")
 generate_data_using_a_scene("kitchen-2", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-2.pbrt")
 generate_data_using_a_scene("kitchen-3", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-3.pbrt")
 generate_data_using_a_scene("kitchen-4", r"..\benedikt-bitterli-scenes\kitchen\scene-v4-4.pbrt")

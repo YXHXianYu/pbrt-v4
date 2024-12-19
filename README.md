@@ -42,3 +42,25 @@
   cmake --build build
   python ./data_maker.py
   ```
+
+## 数据转换器
+
+* 依赖
+
+  * Cargo（Rust）
+
+* 如何使用
+
+  * 先运行 `python ./data_maker.py`，在 `result/` 下生成一系列带时间戳的原始文件
+
+  ```shell
+  # 进入根目录
+  python ./data_maker              # 在 result/ 中，生成带时间戳的初始数据
+  cd data-analyzer
+  cargo run --bin data-converter-1 # 在 result/data-converter-output 中，生成 "去除时间戳、并且简化sppm" 格式的数据
+  cargo run --bin data-converter-2 # 在 result/data-converter-2-output 中，生成 "单个场景单个文件" 格式的数据
+  ```
+
+  
+
+  

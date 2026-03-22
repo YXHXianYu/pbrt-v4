@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, utilities};
 
 pub fn save_data_rgb(data: &Data, width: usize, height: usize) {
     use exr::prelude::*;
@@ -89,4 +89,61 @@ pub fn save_data_simplify_sppm(data: &Data, width: usize, height: usize, filenam
 
     println!("Saved to {}", filename);
     
+}
+
+pub fn save_img_delta(
+    img1: &Data,
+    img2: &Data,
+    width: usize,
+    height: usize,
+    filename: &str
+) {
+    use exr::prelude::*;
+
+    let n = img1.num_of_pixels as usize;
+    assert!(n == img2.num_of_pixels as usize);
+
+    let mut delta_r = vec![0.0_f32; n];
+    let mut delta_g = vec![0.0_f32; n];
+    let mut delta_b = vec![0.0_f32; n];
+
+    let img1_r = img1.image.get("R").unwrap().values_as_f32().collect::<Vec<f32>>();
+    let img1_g = img1.image.get("G").unwrap().values_as_f32().collect::<Vec<f32>>();
+    let img1_b = img1.image.get("B").unwrap().values_as_f32().collect::<Vec<f32>>();
+
+    let img2_r = img2.image.get("R").unwrap().values_as_f32().collect::<Vec<f32>>();
+    let img2_g = img2.image.get("G").unwrap().values_as_f32().collect::<Vec<f32>>();
+    let img2_b = img2.image.get("B").unwrap().values_as_f32().collect::<Vec<f32>>();
+
+    for i in 0..n {
+        delta_r[i] = (img1_r[i] - img2_r[i]).abs();
+        delta_g[i] = (img1_g[i] - img2_g[i]).abs();
+        delta_b[i] = (img1_b[i] - img2_b[i]).abs();
+    }
+
+    let pixels = SpecificChannels::build()
+        .with_channel("R")
+        .with_channel("G")
+        .with_channel("B")
+        .with_pixel_fn(|pos| {
+            let index = (pos.1 * width + pos.0) as usize;
+            (
+                delta_r[index],
+                delta_g[index],
+                delta_b[index]
+            )
+        });
+    
+    let image = Image::from_channels(
+        (width, height),
+        pixels
+    );
+
+    // let mut current_progress_percentage = 0;
+    let _ = utilities::create_directories_for_file(filename);
+    image.write()
+        .to_file(&filename).unwrap();
+
+    println!("Saved to {}", filename);
+
 }

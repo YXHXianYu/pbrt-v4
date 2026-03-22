@@ -1,8 +1,123 @@
-use crate::prelude::*;
+use crate::{prelude::*, utilities};
 use plotters::prelude::*;
 use std::ops::Range;
 
-pub fn draw(
+pub fn draw_comparison_of_mse_mitsuba(
+    mse: &Data,
+    mse_ref: &Data,
+    number_of_points: u32,
+    time_str: &str
+) -> Result<(), Box<dyn std::error::Error>> {
+
+    let result_width = 1080;
+    let result_height = 720;
+
+    let range_x = -0.01f32..0.2f32;
+    let range_y = 0.0f32..0.4f32;
+
+    for color in ["R", "G", "B"].iter() {
+        let title = format!("Comparison of Mse & MseRef.{}", color);
+        let filename = format!("output/{}/CompOfMseAndMseRef.{}.png", time_str, color);
+
+        draw_multi_channels_distribution_mitsuba(
+            mse,
+            mse_ref,
+            color,
+            title.as_str(),
+            filename.as_str(),
+            result_width,
+            result_height,
+            number_of_points,
+            range_x.clone(),
+            range_y.clone()
+        )?;
+    }
+    
+    Ok(())
+}
+
+#[allow(non_snake_case)]
+fn draw_multi_channels_distribution_mitsuba(
+    mse: &Data,
+    mse_ref: &Data,
+    channel_name: &str,
+    title: &str,
+    filename: &str,
+    width: u32,
+    height: u32,
+    number_of_points: u32,
+    range_x: Range<f32>,
+    range_y: Range<f32>
+) -> Result<(), Box<dyn std::error::Error>> {
+
+    utilities::create_directories_for_file(filename)?;
+
+    let root = BitMapBackend::new(filename, (width, height)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, ("sans-serif", 50).into_font())
+        .margin(5)
+        .x_label_area_size(30)
+        .y_label_area_size(30)
+        .build_cartesian_2d(range_x.clone(), range_y.clone())?;
+
+    chart
+        .configure_mesh().draw()?;
+
+    let delta = (range_x.end - range_x.start) / (number_of_points as f32 + 1_f32);
+
+    let left_bound = (0..number_of_points)
+        .map(|x| if x == 0 { range_x.start } else { range_x.start + delta * (x as f32 + 0.5_f32) })
+        .collect::<Vec<f32>>();
+
+    for (data, tag, color) in [(mse, "MSE", &RED), (mse_ref, "MSE Ref", &GREEN)].iter().cloned() {
+        let mut count: Vec<u32> = (0..number_of_points).map(|_| 0).collect();
+
+        data.image[channel_name].values_as_f32().for_each(|x| {
+            let mut L = 0_u32;
+            let mut R = number_of_points as u32;
+            while R - L > 1 {
+                let mid = (L + R) / 2;
+                if x >= left_bound[mid as usize] {
+                    L = mid;
+                } else {
+                    R = mid;
+                }
+            }
+            count[L as usize] += 1;
+        });
+
+        // print count[] for debugging
+        println!("{:?}", count);
+
+        chart
+            .draw_series(LineSeries::new(
+                (0..number_of_points)
+                    .map(|x| (
+                        range_x.start + delta * (x as f32 + 1_f32),          // x
+                        count[x as usize] as f32 / data.num_of_pixels as f32 // y
+                    )),
+                color.clone(),
+            ))?
+            .label(tag)
+            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color.clone()));
+    }
+
+    chart
+        .configure_series_labels()
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw()?;
+
+    root.present()?;
+
+    println!("{} is done", filename);
+
+    Ok(())
+}
+
+pub fn draw_comparison_of_mse_pbrt(
     data: &Data,
     width: u32,
     height: u32,
@@ -24,7 +139,7 @@ pub fn draw(
             let mse = format!("B5-MSE[{}].{}", idx, color);
             let mseref = format!("B6-MSERef[{}].{}", idx, color);
 
-            draw_multi_channels_distribution(data, title.as_str(), filename.as_str(), Vec::from([
+            draw_multi_channels_distribution_pbrt(data, title.as_str(), filename.as_str(), Vec::from([
                 (mse.as_str(), RED),
                 (mseref.as_str(), GREEN),
             ]), width, height, number_of_points, range_x.clone(), range_y.clone())?;
@@ -35,7 +150,7 @@ pub fn draw(
 }
 
 #[allow(non_snake_case)]
-fn draw_multi_channels_distribution(
+fn draw_multi_channels_distribution_pbrt(
     data: &Data,
     title: &str,
     filename: &str,
